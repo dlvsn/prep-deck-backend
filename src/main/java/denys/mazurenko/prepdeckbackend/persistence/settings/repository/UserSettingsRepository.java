@@ -1,0 +1,9 @@
+package denys.mazurenko.prepdeckbackend.persistence.settings.repository;
+
+import denys.mazurenko.prepdeckbackend.persistence.settings.entity.UserSettings;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.UUID;
+
+public interface UserSettingsRepository extends JpaRepository<UserSettings, UUID> {
+}

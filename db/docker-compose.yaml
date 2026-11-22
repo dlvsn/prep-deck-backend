@@ -1,7 +1,8 @@
-# Local PostgreSQL for development. From this folder:
+# Local PostgreSQL for development, on its own. From this folder:
 #   docker compose up -d      start
 #   docker compose down       stop (the data stays in ./data)
 # Credentials come from .env next to this file; copy .env.example if it is missing.
+# Everything else the backend needs locally (Mailpit…) is in ../docker/docker-compose.yaml.
 services:
   postgres:
     image: postgres:17

@@ -36,6 +36,31 @@ client is calling, so a desktop-only shortcut (reading the user's disk, say) is 
 DTOs) → controller. Each layer calls only the one beneath it; a controller never touches a
 repository, and a web service never returns an entity.
 
+## Sign-up and email confirmation
+
+Sign-up creates the account **unconfirmed** (`users.email_verified_at` null) and emails a
+six-digit code; no session yet (`202`, `RegistrationResponse`). `POST /auth/verify-email` with
+the code confirms the address and opens the first session. Until then:
+
+- log in with the right password answers `403 auth.emailNotVerified` with the email in `data`,
+  and sends a fresh code, so the client can go straight to the code screen;
+- registering the same email again takes the unconfirmed account over (new username, new
+  password, new code): only whoever reads the mailbox can finish, so nothing is stolen.
+
+Codes live in `one_time_codes` (`purpose` VERIFY_EMAIL, later RESET_PASSWORD), one active per user
+and purpose, hashed as SHA-256 of `<user id>:<code>`. 15 minutes, 5 guesses (`attempts_left`; a
+wrong guess must stick, hence `noRollbackFor`), at most one letter a minute (`auth.resendTooSoon`
+with `retryAfterSeconds`). Refusals carry what the client shows: attempts left, seconds to wait.
+
+**Letters go out after commit.** The service publishes `VerificationCodeIssued`;
+`VerificationMailListener` handles it `AFTER_COMMIT` and `@Async`: a rolled-back sign-up sends
+nothing, and a slow SMTP server never holds up a response. A failed send is logged; the person
+asks for the code again. `EmailTemplates` fills `<location><name>-<language><suffix>` (all in
+`prep-deck.mail.templates.*`, today `classpath:templates/verify-email-uk.html`)
+(`{{code}}`, `{{username}}`, `{{email}}`, `{{expires_minutes}}`, `{{support_email}}`, values
+HTML-escaped; subject = `<title>`), the language from the request's `Accept-Language`.
+Locally, letters land in Mailpit (`docker/docker-compose.yaml`, inbox at http://localhost:8025).
+
 ## Sessions
 
 A session is two tokens:
@@ -60,6 +85,16 @@ the login screen.
 Email and username are stored lower-cased (the table checks it), so their unique constraints are
 case-insensitive.
 
+## User settings
+
+`/api/settings` keeps a user's picks so every device starts the same: theme mode, accent,
+language, the topic opened last. One `user_settings` row per user, made on the first `PUT`; a
+`GET` before that answers all nulls (`updatedAt` null), and the client then uploads its own
+values. After sign-in the server's copy wins; every later change is sent as the whole set.
+The enums (`ThemeMode`, `AccentColor`, `Language` in `domain/`) travel as the client's lower-case
+codes (`@JsonValue`/`@JsonCreator`) and are stored as their names. `last_topic_id` is a plain
+string while topics live only in the client; it becomes a UUID foreign key with the topics table.
+
 ## Things to know before changing code
 
 - Settings come from env variables, locally from `.env` beside `pom.xml` (imported by
@@ -74,7 +109,8 @@ case-insensitive.
   to it; Flyway's own history table stays in `public`. Hibernate only validates.
 - CORS allows `prep-deck.cors.allowed-origins` (the client's dev server for now). The packaged
   Electron app loads from `file://` and will need its origin added when it talks to a server.
-- Not built yet, though the client already calls them: password reset (needs an email sender).
+- Not built yet, though the client already calls them: password reset. Its templates exist and
+  `one_time_codes` already allows `RESET_PASSWORD`.
 - Spring Boot 4.2, Java 21, Lombok, MapStruct 1.6, PostgreSQL 17 (run locally from `db/`: `docker compose up -d`, data in `db/data`).
 
 ## Where to start
@@ -93,12 +129,16 @@ Everything this application does starts at one of these.
 
 | Method | Path | Handler | What it does | Where |
 |---|---|---|---|---|
-| `POST` | `/api/auth/register` | AuthController.register() | Creates an account and opens a session for it at once. | `api/auth/AuthController.java:30` |
-| `POST` | `/api/auth/login` | AuthController.login() | Opens a session by email or username and password. | `api/auth/AuthController.java:40` |
-| `POST` | `/api/auth/refresh` | AuthController.refresh() | Exchanges a refresh token for a new access token and the next refresh token. | `api/auth/AuthController.java:49` |
-| `POST` | `/api/auth/logout` | AuthController.logout() | Revokes the session the refresh token belongs to; open, since the access token may have expired. | `api/auth/AuthController.java:58` |
-| `GET` | `/api/auth/me` | AuthController.me() | The signed-in user. | `api/auth/AuthController.java:68` |
-| `GET` | `/api/auth/username-available` | AuthController.usernameAvailable() | Whether a username is still free, for the sign-up form's live hint. | `api/auth/AuthController.java:76` |
+| `POST` | `/api/auth/register` | AuthController.register() | Creates the account unconfirmed and emails a code; the session comes with the code. | `api/auth/AuthController.java:35` |
+| `POST` | `/api/auth/verify-email` | AuthController.verifyEmail() | Confirms the email with the code from the letter and opens the first session. | `api/auth/AuthController.java:46` |
+| `POST` | `/api/auth/resend-verification` | AuthController.resendVerification() | Sends a new confirmation letter, at most once per cooldown. | `api/auth/AuthController.java:55` |
+| `POST` | `/api/auth/login` | AuthController.login() | Opens a session by email or username and password; an unconfirmed email gets a code instead. | `api/auth/AuthController.java:66` |
+| `POST` | `/api/auth/refresh` | AuthController.refresh() | Exchanges a refresh token for a new access token and the next refresh token. | `api/auth/AuthController.java:76` |
+| `POST` | `/api/auth/logout` | AuthController.logout() | Revokes the session the refresh token belongs to; open, since the access token may have expired. | `api/auth/AuthController.java:85` |
+| `GET` | `/api/auth/me` | AuthController.me() | The signed-in user. | `api/auth/AuthController.java:95` |
+| `GET` | `/api/auth/username-available` | AuthController.usernameAvailable() | Whether a username is still free, for the sign-up form's live hint. | `api/auth/AuthController.java:103` |
+| `GET` | `/api/settings` | SettingsController.get() | The signed-in user's saved picks; all fields null before the first save. | `api/settings/SettingsController.java:30` |
+| `PUT` | `/api/settings` | SettingsController.update() | Saves the whole set of picks. | `api/settings/SettingsController.java:38` |
 
 ### Scheduled jobs
 
@@ -120,11 +160,23 @@ Constructor-injection trees from each entry point. Configuration property classe
 AuthController  [controller]
   AuthWebService → AuthWebServiceImpl  [service]
     JwtService  [component]
+    OneTimeCodeDaoService → OneTimeCodeDaoServiceImpl  [service]
+      OneTimeCodeRepository  [repository]
     RefreshTokenDaoService → RefreshTokenDaoServiceImpl  [service]
       RefreshTokenRepository  [repository]
     UserDaoService → UserDaoServiceImpl  [service]
       UserRepository  [repository]
     UserMapper  [interface]
+```
+
+**SettingsController — HTTP**
+
+```
+SettingsController  [controller]
+  SettingsWebService → SettingsWebServiceImpl  [service]
+    UserSettingsDaoService → UserSettingsDaoServiceImpl  [service]
+      UserSettingsRepository  [repository]
+    UserSettingsMapper  [interface]
 ```
 
 ## 3. Classes by package
@@ -145,17 +197,36 @@ AuthController  [controller]
 
 | Class | Role | Summary | Injects | Where |
 |---|---|---|---|---|
-| **AuthController** | controller | - | AuthWebService | `api/auth/AuthController.java:23` |
+| **AuthController** | controller | - | AuthWebService | `api/auth/AuthController.java:27` |
+
+### `api.settings`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **SettingsController** | controller | - | SettingsWebService | `api/settings/SettingsController.java:23` |
 
 ### `config`
 
 | Class | Role | Summary | Injects | Where |
 |---|---|---|---|---|
+| **AsyncConfig** | config | `@Async` work (sending letters) runs on Spring Boot's task executor, so a slow SMTP server never holds up an HTTP response. | - | `config/AsyncConfig.java:12` |
 | **JwtConfig** | config | The key access tokens are signed and checked with (HS256), and the encoder and decoder built on it. | - | `config/JwtConfig.java:26` |
-| **SecurityConfig** | config | Stateless JWT security: no session, no CSRF token (nothing rides on a cookie), every request outside the open auth endpoints needs a valid Bearer access token. | - | `config/SecurityConfig.java:28` |
+| **MailConfig** | config | Our mail settings: the sender, the support address, where the letter templates are. | - | `config/MailConfig.java:9` |
+| **SecurityConfig** | config | Stateless JWT security: no session, no CSRF token (nothing rides on a cookie), every request outside the open auth endpoints needs a valid Bearer access token. | - | `config/SecurityConfig.java:29` |
+| **AppMailProperties** | properties | Our own mail settings; the SMTP server itself is Spring Boot's `spring.mail.*`. | - | `config/AppMailProperties.java:11` |
 | **CorsProperties** | properties | - | - | `config/CorsProperties.java:13` |
+| **EmailTemplateProperties** | properties | Where the letter templates are and what they are called. | - | `config/EmailTemplateProperties.java:15` |
 | **JwtProperties** | properties | Access tokens are short-lived JWTs; refresh tokens are opaque and live in the database. | - | `config/JwtProperties.java:13` |
+| **VerificationProperties** | properties | How one-time email codes behave. | - | `config/VerificationProperties.java:13` |
 | **MapStructConfig** | class | Shared settings for every mapper: each one is a Spring bean, receives its collaborators through the constructor, and has its generated implementation in an impl package beside it. | - | `config/MapStructConfig.java:15` |
+
+### `domain`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **AccentColor** | enum | The eight interface accents. | String | `domain/AccentColor.java:7` |
+| **Language** | enum | The languages the app speaks: the interface language a user picks and the language letters are written in. | String | `domain/Language.java:12` |
+| **ThemeMode** | enum | Dark or light interface. | String | `domain/ThemeMode.java:7` |
 
 ### `dto.auth.request`
 
@@ -164,26 +235,99 @@ AuthController  [controller]
 | **LoginRequest** | record | Log in with an email or a username. | - | `dto/auth/request/LoginRequest.java:6` |
 | **RefreshRequest** | record | Body of refresh and log out: the refresh token the client holds. | - | `dto/auth/request/RefreshRequest.java:6` |
 | **RegisterRequest** | record | Sign-up. | - | `dto/auth/request/RegisterRequest.java:12` |
+| **ResendCodeRequest** | record | Asks for a new confirmation letter. | - | `dto/auth/request/ResendCodeRequest.java:7` |
+| **VerifyEmailRequest** | record | The code from the confirmation letter, for the email it was sent to. | - | `dto/auth/request/VerifyEmailRequest.java:8` |
 
 ### `dto.auth.response`
 
 | Class | Role | Summary | Injects | Where |
 |---|---|---|---|---|
+| **CodeAttemptsResponse** | record | The data of an "auth.codeInvalid" refusal: wrong guesses still allowed for this code. | - | `dto/auth/response/CodeAttemptsResponse.java:4` |
+| **RegistrationResponse** | record | Sign-up accepted: the account waits for its email to be confirmed, and a letter with the code is on its way to email. | - | `dto/auth/response/RegistrationResponse.java:7` |
+| **RetryAfterResponse** | record | The data of an "auth.resendTooSoon" refusal: seconds until another letter may be asked for. | - | `dto/auth/response/RetryAfterResponse.java:4` |
 | **SessionResponse** | record | What log in, sign up and refresh answer with (client type `Session`). | - | `dto/auth/response/SessionResponse.java:7` |
+| **UnconfirmedEmailResponse** | record | The data of an "auth.emailNotVerified" refusal at log in: the right password, an email not yet confirmed. | - | `dto/auth/response/UnconfirmedEmailResponse.java:8` |
 | **UserResponse** | record | The user as the client sees them (client type `User`). | - | `dto/auth/response/UserResponse.java:6` |
 
 ### `dto.common.response`
 
 | Class | Role | Summary | Injects | Where |
 |---|---|---|---|---|
-| **ApiResponse** | record | The one shape every endpoint answers with, success or failure alike. | - | `dto/common/response/ApiResponse.java:10` |
+| **ApiResponse** | record | The one shape every endpoint answers with, success or failure alike. | - | `dto/common/response/ApiResponse.java:11` |
+
+### `dto.settings.request`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **UpdateSettingsRequest** | record | Every pick at once: the client always sends the whole set it shows. | - | `dto/settings/request/UpdateSettingsRequest.java:10` |
+
+### `dto.settings.response`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **SettingsResponse** | record | A user's saved picks (client type `Settings`). | - | `dto/settings/response/SettingsResponse.java:13` |
 
 ### `exception`
 
 | Class | Role | Summary | Injects | Where |
 |---|---|---|---|---|
 | **GlobalExceptionHandler** | advice | Turns every failure into an ApiResponse, so a client never has to parse a second error format. | - | `exception/GlobalExceptionHandler.java:26` |
-| **ApiException** | exception | A refusal the client should show: an HTTP status and a message key ("auth.emailTaken") that the client translates into the user's language. | HttpStatus, String | `exception/ApiException.java:11` |
+| **ApiException** | exception | A refusal the client should show: an HTTP status and a message key ("auth.emailTaken") that the client translates into the user's language, plus, when the client needs more to act on it, a small data… | HttpStatus, String | `exception/ApiException.java:12` |
+
+### `mail`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **EmailService** | service | Renders a template and hands the letter to the SMTP server configured in `spring.mail.*`. | AppMailProperties, EmailTemplates, JavaMailSender | `mail/EmailService.java:18` |
+| **EmailTemplates** | component | The letter templates (location and names in EmailTemplateProperties), filled in by name: every {{key}} becomes its value, HTML-escaped. | EmailTemplateProperties, ResourceLoader | `mail/EmailTemplates.java:27` |
+| **VerificationMailListener** | component | Sends the confirmation letter once the code is safely in the database, on a thread of its own. | AppMailProperties, EmailService, EmailTemplateProperties | `mail/VerificationMailListener.java:22` |
+| **Letter** | record | A rendered letter: the subject line and the HTML body. | - | `mail/Letter.java:4` |
+| **VerificationCodeIssued** | record | A code was saved and its letter should go out. | - | `mail/VerificationCodeIssued.java:9` |
+
+### `persistence.code.dao`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **OneTimeCodeDaoServiceImpl** | service | - | OneTimeCodeRepository | `persistence/code/dao/OneTimeCodeDaoServiceImpl.java:16` |
+| **OneTimeCodeDaoService** | interface | - | - | `persistence/code/dao/OneTimeCodeDaoService.java:9` |
+
+### `persistence.code.entity`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **OneTimeCode** | entity | A six-digit code sent by email, kept as a hash, good for a few guesses and a few minutes. | - | `persistence/code/entity/OneTimeCode.java:29` |
+| **CodePurpose** | enum | What a one-time code unlocks. | - | `persistence/code/entity/CodePurpose.java:4` |
+
+### `persistence.code.repository`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **OneTimeCodeRepository** | repository | - | - | `persistence/code/repository/OneTimeCodeRepository.java:15` |
+
+### `persistence.settings.dao`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **UserSettingsDaoServiceImpl** | service | - | UserSettingsRepository | `persistence/settings/dao/UserSettingsDaoServiceImpl.java:14` |
+| **UserSettingsDaoService** | interface | - | - | `persistence/settings/dao/UserSettingsDaoService.java:8` |
+
+### `persistence.settings.entity`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **UserSettings** | entity | A user's picks, the same on every device: look, language, the topic opened last. | - | `persistence/settings/entity/UserSettings.java:25` |
+
+### `persistence.settings.mapper`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **UserSettingsMapper** | interface | - | - | `persistence/settings/mapper/UserSettingsMapper.java:9` |
+
+### `persistence.settings.repository`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **UserSettingsRepository** | repository | - | - | `persistence/settings/repository/UserSettingsRepository.java:8` |
 
 ### `persistence.token.dao`
 
@@ -235,28 +379,40 @@ AuthController  [controller]
 |---|---|---|---|---|
 | **JsonSecurityErrors** | component | 401 and 403 from the security filters, in the same ApiResponse shape as everything else. | - | `security/JsonSecurityErrors.java:24` |
 | **JwtService** | component | Signs access tokens. | Clock, JwtEncoder, JwtProperties | `security/JwtService.java:19` |
+| **OneTimeCodes** | class | Six-digit codes for letters. | - | `security/OneTimeCodes.java:13` |
 | **OpaqueTokens** | class | Refresh tokens: 256 random bits for the client, their SHA-256 for the database. | - | `security/OpaqueTokens.java:14` |
 
 ### `service.auth`
 
 | Class | Role | Summary | Injects | Where |
 |---|---|---|---|---|
-| **AuthWebServiceImpl** | service | Each method is one transaction: rotation reads a locked row, revokes it and inserts its successor, and those must succeed or fail together. | Clock, JwtProperties, JwtService, PasswordEncoder, RefreshTokenDaoService, String, UserDaoService, UserMapper | `service/auth/AuthWebServiceImpl.java:35` |
-| **AuthWebService** | interface | Sign-up, log in, refresh, log out. | - | `service/auth/AuthWebService.java:18` |
+| **AuthWebServiceImpl** | service | Each method is one transaction: rotation reads a locked row, revokes it and inserts its successor, and those must succeed or fail together. | ApplicationEventPublisher, Clock, JwtProperties, JwtService, OneTimeCodeDaoService, PasswordEncoder, RefreshTokenDaoService, String, UserDaoService, UserMapper, VerificationProperties | `service/auth/AuthWebServiceImpl.java:51` |
+| **AuthWebService** | interface | Sign-up with email confirmation, log in, refresh, log out. | - | `service/auth/AuthWebService.java:26` |
+
+### `service.settings`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **SettingsWebServiceImpl** | service | - | Clock, UserSettingsDaoService, UserSettingsMapper | `service/settings/SettingsWebServiceImpl.java:17` |
+| **SettingsWebService** | interface | A user's picks kept on the server, so every device they sign in on starts the same: theme, accent, language, the topic opened last. | - | `service/settings/SettingsWebService.java:12` |
 
 ## 4. Data model
 
 | Entity | Kind | Table | Fields | Repository | Where |
 |---|---|---|---|---|---|
+| **OneTimeCode** | entity | `one_time_codes` | 8 | OneTimeCodeRepository | `persistence/code/entity/OneTimeCode.java:29` |
 | **RefreshToken** | entity | `refresh_tokens` | 7 | RefreshTokenRepository | `persistence/token/entity/RefreshToken.java:30` |
-| **User** | entity | `users` | 7 | UserRepository | `persistence/user/entity/User.java:27` |
+| **User** | entity | `users` | 8 | UserRepository | `persistence/user/entity/User.java:27` |
+| **UserSettings** | entity | `user_settings` | 6 | UserSettingsRepository | `persistence/settings/entity/UserSettings.java:25` |
 
 ### Repositories
 
 | Repository | Entity | Methods | Where |
 |---|---|---|---|
+| **OneTimeCodeRepository** | OneTimeCode | `deleteActive()`, `findFirstByUserIdAndPurposeAndUsedAtIsNullOrderByCreatedAtDesc()`, `findFirstByUserIdAndPurposeOrderByCreatedAtDesc()` | `persistence/code/repository/OneTimeCodeRepository.java:15` |
 | **RefreshTokenRepository** | RefreshToken | `findByHashForUpdate()`, `revokeFamily()` | `persistence/token/repository/RefreshTokenRepository.java:15` |
 | **UserRepository** | User | `existsByEmail()`, `existsByUsername()`, `findByEmail()`, `findByUsername()` | `persistence/user/repository/UserRepository.java:9` |
+| **UserSettingsRepository** | UserSettings | - | `persistence/settings/repository/UserSettingsRepository.java:8` |
 
 ### Tables (Liquibase)
 
@@ -270,19 +426,25 @@ _none_
 
 | Properties class | Prefix | Keys | Read by | Where |
 |---|---|---|---|---|
-| **CorsProperties** | `prep-deck.cors` | 1 | - | `config/CorsProperties.java:13` |
+| **AppMailProperties** | `prep-deck.mail` | 2 | EmailService, VerificationMailListener | `config/AppMailProperties.java:11` |
+| **CorsProperties** | `prep-deck.cors` | 2 | - | `config/CorsProperties.java:13` |
+| **EmailTemplateProperties** | `prep-deck.mail.templates` | 5 | EmailTemplates, VerificationMailListener | `config/EmailTemplateProperties.java:15` |
 | **JwtProperties** | `prep-deck.jwt` | 4 | AuthWebServiceImpl, JwtService | `config/JwtProperties.java:13` |
+| **VerificationProperties** | `prep-deck.verification` | 3 | AuthWebServiceImpl | `config/VerificationProperties.java:13` |
 
 ### Keys
 
-- **CorsProperties** -- `prep-deck.cors.allowed-origins`
+- **AppMailProperties** -- `prep-deck.mail.from`, `prep-deck.mail.support-email`
+- **CorsProperties** -- `prep-deck.cors.mapping`, `prep-deck.cors.allowed-origins`
+- **EmailTemplateProperties** -- `prep-deck.mail.templates.location`, `prep-deck.mail.templates.suffix`, `prep-deck.mail.templates.fallback-language`, `prep-deck.mail.templates.verify-email`, `prep-deck.mail.templates.reset-password`
 - **JwtProperties** -- `prep-deck.jwt.secret`, `prep-deck.jwt.issuer`, `prep-deck.jwt.access-ttl`, `prep-deck.jwt.refresh-ttl`
+- **VerificationProperties** -- `prep-deck.verification.code-ttl`, `prep-deck.verification.max-attempts`, `prep-deck.verification.resend-cooldown`
 
 ### Property files
 
 | File | Keys |
 |---|---|
-| `src/main/resources/application.properties` | 17 |
+| `src/main/resources/application.properties` | 34 |
 
 ### Beans built by hand
 
@@ -292,9 +454,9 @@ _none_
 | `jwtEncoder()` | JwtConfig | `config/JwtConfig.java:47` |
 | `jwtDecoder()` | JwtConfig | `config/JwtConfig.java:52` |
 | `clock()` | JwtConfig | `config/JwtConfig.java:61` |
-| `securityFilterChain()` | SecurityConfig | `config/SecurityConfig.java:30` |
-| `passwordEncoder()` | SecurityConfig | `config/SecurityConfig.java:59` |
-| `corsConfigurationSource()` | SecurityConfig | `config/SecurityConfig.java:64` |
+| `securityFilterChain()` | SecurityConfig | `config/SecurityConfig.java:31` |
+| `passwordEncoder()` | SecurityConfig | `config/SecurityConfig.java:63` |
+| `corsConfigurationSource()` | SecurityConfig | `config/SecurityConfig.java:68` |
 
 ## 6. Errors
 
@@ -308,7 +470,7 @@ _none_
 
 | Exception | Meaning | Where |
 |---|---|---|
-| **ApiException** | A refusal the client should show: an HTTP status and a message key ("auth.emailTaken") that the client translates into the user's language. | `exception/ApiException.java:11` |
+| **ApiException** | A refusal the client should show: an HTTP status and a message key ("auth.emailTaken") that the client translates into the user's language, plus, when the client needs more to act on it, a small data… | `exception/ApiException.java:12` |
 
 ## 7. Tests
 
@@ -316,11 +478,11 @@ _none_
 
 ## 8. Numbers
 
-- main classes: **30** (1125 lines)
+- main classes: **65** (2255 lines)
 - test classes: **0** (0 lines)
-- by role: advice 1, application 1, class 3, component 2, config 2, controller 1, entity 2, exception 1, interface 4, properties 2, record 6, repository 2, service 3
-- injection edges: **9**
-- `.` — 30 main classes, package `denys.mazurenko.prepdeckbackend`, Spring Boot 4.2.0, Java 21, artifact `prep-deck-backend`
+- by role: advice 1, application 1, class 4, component 4, config 4, controller 2, entity 4, enum 4, exception 1, interface 8, properties 5, record 16, repository 4, service 7
+- injection edges: **22**
+- `.` — 65 main classes, package `denys.mazurenko.prepdeckbackend`, Spring Boot 4.2.0, Java 21, artifact `prep-deck-backend`
 
 ---
 

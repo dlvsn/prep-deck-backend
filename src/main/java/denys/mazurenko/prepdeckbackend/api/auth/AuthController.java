@@ -4,6 +4,9 @@ import denys.mazurenko.prepdeckbackend.api.ApiPaths;
 import denys.mazurenko.prepdeckbackend.dto.auth.request.LoginRequest;
 import denys.mazurenko.prepdeckbackend.dto.auth.request.RefreshRequest;
 import denys.mazurenko.prepdeckbackend.dto.auth.request.RegisterRequest;
+import denys.mazurenko.prepdeckbackend.dto.auth.request.ResendCodeRequest;
+import denys.mazurenko.prepdeckbackend.dto.auth.request.VerifyEmailRequest;
+import denys.mazurenko.prepdeckbackend.dto.auth.response.RegistrationResponse;
 import denys.mazurenko.prepdeckbackend.dto.auth.response.SessionResponse;
 import denys.mazurenko.prepdeckbackend.dto.auth.response.UserResponse;
 import denys.mazurenko.prepdeckbackend.dto.common.response.ApiResponse;
@@ -15,6 +18,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Locale;
 import java.util.UUID;
 
 @RestController
@@ -25,22 +29,45 @@ public class AuthController {
     private final AuthWebService authWebService;
 
     /**
-     * Creates an account and opens a session for it at once.
+     * Creates the account unconfirmed and emails a code; the session comes with the code.
+     * The letter's language follows the request's Accept-Language.
      */
     @PostMapping("/register")
-    @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<SessionResponse> register(@Valid
-                                                 @RequestBody RegisterRequest request) {
-        return ApiResponse.ok(authWebService.register(request));
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public ApiResponse<RegistrationResponse> register(@Valid
+                                                      @RequestBody RegisterRequest request,
+                                                      Locale locale) {
+        return ApiResponse.ok(authWebService.register(request, locale));
     }
 
     /**
-     * Opens a session by email or username and password.
+     * Confirms the email with the code from the letter and opens the first session.
+     */
+    @PostMapping("/verify-email")
+    public ApiResponse<SessionResponse> verifyEmail(@Valid
+                                                    @RequestBody VerifyEmailRequest request) {
+        return ApiResponse.ok(authWebService.verifyEmail(request));
+    }
+
+    /**
+     * Sends a new confirmation letter, at most once per cooldown.
+     */
+    @PostMapping("/resend-verification")
+    public ApiResponse<Void> resendVerification(@Valid
+                                                @RequestBody ResendCodeRequest request,
+                                                Locale locale) {
+        authWebService.resendVerification(request, locale);
+        return ApiResponse.ok();
+    }
+
+    /**
+     * Opens a session by email or username and password; an unconfirmed email gets a code instead.
      */
     @PostMapping("/login")
     public ApiResponse<SessionResponse> login(@Valid
-                                              @RequestBody LoginRequest request) {
-        return ApiResponse.ok(authWebService.login(request));
+                                              @RequestBody LoginRequest request,
+                                              Locale locale) {
+        return ApiResponse.ok(authWebService.login(request, locale));
     }
 
     /**

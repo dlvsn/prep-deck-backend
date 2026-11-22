@@ -30,6 +30,31 @@ client is calling, so a desktop-only shortcut (reading the user's disk, say) is 
 DTOs) → controller. Each layer calls only the one beneath it; a controller never touches a
 repository, and a web service never returns an entity.
 
+## Sign-up and email confirmation
+
+Sign-up creates the account **unconfirmed** (`users.email_verified_at` null) and emails a
+six-digit code; no session yet (`202`, `RegistrationResponse`). `POST /auth/verify-email` with
+the code confirms the address and opens the first session. Until then:
+
+- log in with the right password answers `403 auth.emailNotVerified` with the email in `data`,
+  and sends a fresh code, so the client can go straight to the code screen;
+- registering the same email again takes the unconfirmed account over (new username, new
+  password, new code): only whoever reads the mailbox can finish, so nothing is stolen.
+
+Codes live in `one_time_codes` (`purpose` VERIFY_EMAIL, later RESET_PASSWORD), one active per user
+and purpose, hashed as SHA-256 of `<user id>:<code>`. 15 minutes, 5 guesses (`attempts_left`; a
+wrong guess must stick, hence `noRollbackFor`), at most one letter a minute (`auth.resendTooSoon`
+with `retryAfterSeconds`). Refusals carry what the client shows: attempts left, seconds to wait.
+
+**Letters go out after commit.** The service publishes `VerificationCodeIssued`;
+`VerificationMailListener` handles it `AFTER_COMMIT` and `@Async`: a rolled-back sign-up sends
+nothing, and a slow SMTP server never holds up a response. A failed send is logged; the person
+asks for the code again. `EmailTemplates` fills `<location><name>-<language><suffix>` (all in
+`prep-deck.mail.templates.*`, today `classpath:templates/verify-email-uk.html`)
+(`{{code}}`, `{{username}}`, `{{email}}`, `{{expires_minutes}}`, `{{support_email}}`, values
+HTML-escaped; subject = `<title>`), the language from the request's `Accept-Language`.
+Locally, letters land in Mailpit (`docker/docker-compose.yaml`, inbox at http://localhost:8025).
+
 ## Sessions
 
 A session is two tokens:
@@ -54,6 +79,16 @@ the login screen.
 Email and username are stored lower-cased (the table checks it), so their unique constraints are
 case-insensitive.
 
+## User settings
+
+`/api/settings` keeps a user's picks so every device starts the same: theme mode, accent,
+language, the topic opened last. One `user_settings` row per user, made on the first `PUT`; a
+`GET` before that answers all nulls (`updatedAt` null), and the client then uploads its own
+values. After sign-in the server's copy wins; every later change is sent as the whole set.
+The enums (`ThemeMode`, `AccentColor`, `Language` in `domain/`) travel as the client's lower-case
+codes (`@JsonValue`/`@JsonCreator`) and are stored as their names. `last_topic_id` is a plain
+string while topics live only in the client; it becomes a UUID foreign key with the topics table.
+
 ## Things to know before changing code
 
 - Settings come from env variables, locally from `.env` beside `pom.xml` (imported by
@@ -68,7 +103,8 @@ case-insensitive.
   to it; Flyway's own history table stays in `public`. Hibernate only validates.
 - CORS allows `prep-deck.cors.allowed-origins` (the client's dev server for now). The packaged
   Electron app loads from `file://` and will need its origin added when it talks to a server.
-- Not built yet, though the client already calls them: password reset (needs an email sender).
+- Not built yet, though the client already calls them: password reset. Its templates exist and
+  `one_time_codes` already allows `RESET_PASSWORD`.
 - Spring Boot 4.2, Java 21, Lombok, MapStruct 1.6, PostgreSQL 17 (run locally from `db/`: `docker compose up -d`, data in `db/data`).
 
 ## Where to start

@@ -26,8 +26,8 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(ApiException.class)
-    public ResponseEntity<ApiResponse<Void>> handleApi(ApiException e) {
-        return ResponseEntity.status(e.getStatus()).body(ApiResponse.error(e.getMessage()));
+    public ResponseEntity<ApiResponse<Object>> handleApi(ApiException e) {
+        return ResponseEntity.status(e.getStatus()).body(ApiResponse.error(e.getMessage(), e.getData()));
     }
 
     /** Bean Validation: the first broken rule, whose message is already a key ("auth.passwordRules"). */

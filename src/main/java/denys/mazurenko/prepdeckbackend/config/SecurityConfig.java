@@ -2,6 +2,7 @@ package denys.mazurenko.prepdeckbackend.config;
 
 import denys.mazurenko.prepdeckbackend.api.ApiPaths;
 import denys.mazurenko.prepdeckbackend.security.JsonSecurityErrors;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,11 +25,12 @@ import java.util.List;
  * outside the open auth endpoints needs a valid Bearer access token.
  */
 @Configuration
-@EnableConfigurationProperties({JwtProperties.class, CorsProperties.class})
+@EnableConfigurationProperties({JwtProperties.class, CorsProperties.class, VerificationProperties.class})
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, JsonSecurityErrors errors) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, JsonSecurityErrors errors,
+                                                   @Value("${server.error.path:/error}") String errorPath) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
@@ -39,11 +41,13 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST,
                                 ApiPaths.AUTH + "/register",
+                                ApiPaths.AUTH + "/verify-email",
+                                ApiPaths.AUTH + "/resend-verification",
                                 ApiPaths.AUTH + "/login",
                                 ApiPaths.AUTH + "/refresh",
                                 ApiPaths.AUTH + "/logout").permitAll()
                         .requestMatchers(HttpMethod.GET, ApiPaths.AUTH + "/username-available").permitAll()
-                        .requestMatchers("/error").permitAll()
+                        .requestMatchers(errorPath).permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(rs -> rs
                         .jwt(Customizer.withDefaults())
@@ -66,11 +70,10 @@ public class SecurityConfig {
         CorsConfiguration cors = new CorsConfiguration();
         cors.setAllowedOrigins(properties.getAllowedOrigins());
         cors.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        cors.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
+        cors.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Accept-Language"));
         cors.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        // Relative to the context path, like every other path in the application.
-        source.registerCorsConfiguration("/**", cors);
+        source.registerCorsConfiguration(properties.getMapping(), cors);
         return source;
     }
 }

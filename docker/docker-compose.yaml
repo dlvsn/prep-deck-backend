@@ -1,0 +1,16 @@
+# The services the backend uses locally, apart from the database (that one is ../db, started on
+# its own). All of them come up together. From this folder:
+#   docker compose up -d      start
+#   docker compose down       stop
+name: prep-deck-services
+
+services:
+  # Catches every letter the backend sends locally: nothing leaves this machine.
+  # Read them at http://localhost:8025. The backend's MAIL_* defaults point here.
+  mailpit:
+    image: axllent/mailpit:v1.34
+    container_name: prep-deck-mailpit
+    ports:
+      - "1025:1025"   # SMTP, where the backend sends
+      - "8025:8025"   # web inbox
+    restart: unless-stopped

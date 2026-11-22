@@ -16,6 +16,7 @@
           "org.springframework.boot:spring-boot-starter-validation",
           "org.springframework.boot:spring-boot-starter-data-jpa",
           "org.springframework.boot:spring-boot-starter-flyway",
+          "org.springframework.boot:spring-boot-starter-mail",
           "org.flywaydb:flyway-database-postgresql",
           "org.postgresql:postgresql",
           "org.projectlombok:lombok",
@@ -46,7 +47,7 @@
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/api/ApiPaths.java",
       "line": 8,
-      "lines": 15,
+      "lines": 16,
       "summary": "Every path prefix, named once for the controllers and the security rules alike.",
       "annotations": [
         "code",
@@ -70,8 +71,8 @@
       "project": "",
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/api/auth/AuthController.java",
-      "line": 23,
-      "lines": 81,
+      "line": 27,
+      "lines": 108,
       "summary": "",
       "annotations": [
         "RequestMapping",
@@ -87,8 +88,11 @@
         "LoginRequest",
         "RefreshRequest",
         "RegisterRequest",
+        "RegistrationResponse",
+        "ResendCodeRequest",
         "SessionResponse",
-        "UserResponse"
+        "UserResponse",
+        "VerifyEmailRequest"
       ],
       "test": false,
       "role": "controller",
@@ -103,21 +107,41 @@
           "http": "POST",
           "path": "/api/auth/register",
           "method": "register",
-          "summary": "Creates an account and opens a session for it at once.",
+          "summary": "Creates the account unconfirmed and emails a code; the session comes with the code.",
           "calls": [
             "AuthWebService"
           ],
-          "line": 30
+          "line": 35
+        },
+        {
+          "http": "POST",
+          "path": "/api/auth/verify-email",
+          "method": "verifyEmail",
+          "summary": "Confirms the email with the code from the letter and opens the first session.",
+          "calls": [
+            "AuthWebService"
+          ],
+          "line": 46
+        },
+        {
+          "http": "POST",
+          "path": "/api/auth/resend-verification",
+          "method": "resendVerification",
+          "summary": "Sends a new confirmation letter, at most once per cooldown.",
+          "calls": [
+            "AuthWebService"
+          ],
+          "line": 55
         },
         {
           "http": "POST",
           "path": "/api/auth/login",
           "method": "login",
-          "summary": "Opens a session by email or username and password.",
+          "summary": "Opens a session by email or username and password; an unconfirmed email gets a code instead.",
           "calls": [
             "AuthWebService"
           ],
-          "line": 40
+          "line": 66
         },
         {
           "http": "POST",
@@ -127,7 +151,7 @@
           "calls": [
             "AuthWebService"
           ],
-          "line": 49
+          "line": 76
         },
         {
           "http": "POST",
@@ -137,7 +161,7 @@
           "calls": [
             "AuthWebService"
           ],
-          "line": 58
+          "line": 85
         },
         {
           "http": "GET",
@@ -147,7 +171,7 @@
           "calls": [
             "AuthWebService"
           ],
-          "line": 68
+          "line": 95
         },
         {
           "http": "GET",
@@ -157,9 +181,124 @@
           "calls": [
             "AuthWebService"
           ],
-          "line": 76
+          "line": 103
         }
       ],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "SettingsController",
+      "kind": "class",
+      "package": "api.settings",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/api/settings/SettingsController.java",
+      "line": 23,
+      "lines": 45,
+      "summary": "",
+      "annotations": [
+        "RequestMapping",
+        "RequiredArgsConstructor",
+        "RestController"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "ApiPaths",
+        "ApiResponse",
+        "SettingsResponse",
+        "SettingsWebService",
+        "UpdateSettingsRequest"
+      ],
+      "test": false,
+      "role": "controller",
+      "injects": [
+        [
+          "SettingsWebService",
+          "settingsWebService"
+        ]
+      ],
+      "endpoints": [
+        {
+          "http": "GET",
+          "path": "/api/settings",
+          "method": "get",
+          "summary": "The signed-in user's saved picks; all fields null before the first save.",
+          "calls": [
+            "SettingsWebService"
+          ],
+          "line": 30
+        },
+        {
+          "http": "PUT",
+          "path": "/api/settings",
+          "method": "update",
+          "summary": "Saves the whole set of picks.",
+          "calls": [
+            "SettingsWebService"
+          ],
+          "line": 38
+        }
+      ],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "AppMailProperties",
+      "kind": "class",
+      "package": "config",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/config/AppMailProperties.java",
+      "line": 11,
+      "lines": 19,
+      "summary": "Our own mail settings; the SMTP server itself is Spring Boot's `spring.mail.*`.",
+      "annotations": [
+        "ConfigurationProperties",
+        "Getter",
+        "Setter"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "properties",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "prefix": "prep-deck.mail",
+      "keys": [
+        "prep-deck.mail.from",
+        "prep-deck.mail.support-email"
+      ]
+    },
+    {
+      "name": "AsyncConfig",
+      "kind": "class",
+      "package": "config",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/config/AsyncConfig.java",
+      "line": 12,
+      "lines": 14,
+      "summary": "`@Async` work (sending letters) runs on Spring Boot's task executor, so a slow SMTP server never holds up an HTTP response.",
+      "annotations": [
+        "Async",
+        "Configuration",
+        "EnableAsync"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "config",
+      "injects": [],
+      "endpoints": [],
       "jobs": [],
       "beans": [],
       "handlers": []
@@ -172,7 +311,7 @@
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/config/CorsProperties.java",
       "line": 13,
-      "lines": 18,
+      "lines": 21,
       "summary": "",
       "annotations": [
         "ConfigurationProperties",
@@ -191,7 +330,45 @@
       "handlers": [],
       "prefix": "prep-deck.cors",
       "keys": [
+        "prep-deck.cors.mapping",
         "prep-deck.cors.allowed-origins"
+      ]
+    },
+    {
+      "name": "EmailTemplateProperties",
+      "kind": "class",
+      "package": "config",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/config/EmailTemplateProperties.java",
+      "line": 15,
+      "lines": 31,
+      "summary": "Where the letter templates are and what they are called.",
+      "annotations": [
+        "ConfigurationProperties",
+        "Getter",
+        "Setter",
+        "code"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "Language"
+      ],
+      "test": false,
+      "role": "properties",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "prefix": "prep-deck.mail.templates",
+      "keys": [
+        "prep-deck.mail.templates.location",
+        "prep-deck.mail.templates.suffix",
+        "prep-deck.mail.templates.fallback-language",
+        "prep-deck.mail.templates.verify-email",
+        "prep-deck.mail.templates.reset-password"
       ]
     },
     {
@@ -270,6 +447,31 @@
       ]
     },
     {
+      "name": "MailConfig",
+      "kind": "class",
+      "package": "config",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/config/MailConfig.java",
+      "line": 9,
+      "lines": 11,
+      "summary": "Our mail settings: the sender, the support address, where the letter templates are.",
+      "annotations": [
+        "Configuration",
+        "EnableConfigurationProperties"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "config",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
       "name": "MapStructConfig",
       "kind": "class",
       "package": "config",
@@ -301,8 +503,8 @@
       "project": "",
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/config/SecurityConfig.java",
-      "line": 28,
-      "lines": 77,
+      "line": 29,
+      "lines": 80,
       "summary": "Stateless JWT security: no session, no CSRF token (nothing rides on a cookie), every request outside the open auth endpoints needs a valid Bearer access token.",
       "annotations": [
         "Configuration",
@@ -322,17 +524,132 @@
       "beans": [
         {
           "method": "securityFilterChain",
-          "line": 30
+          "line": 31
         },
         {
           "method": "passwordEncoder",
-          "line": 59
+          "line": 63
         },
         {
           "method": "corsConfigurationSource",
-          "line": 64
+          "line": 68
         }
       ],
+      "handlers": []
+    },
+    {
+      "name": "VerificationProperties",
+      "kind": "class",
+      "package": "config",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/config/VerificationProperties.java",
+      "line": 13,
+      "lines": 24,
+      "summary": "How one-time email codes behave.",
+      "annotations": [
+        "ConfigurationProperties",
+        "Getter",
+        "Setter"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "properties",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "prefix": "prep-deck.verification",
+      "keys": [
+        "prep-deck.verification.code-ttl",
+        "prep-deck.verification.max-attempts",
+        "prep-deck.verification.resend-cooldown"
+      ]
+    },
+    {
+      "name": "AccentColor",
+      "kind": "enum",
+      "package": "domain",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/domain/AccentColor.java",
+      "line": 7,
+      "lines": 38,
+      "summary": "The eight interface accents.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "enum",
+      "injects": [
+        [
+          "String",
+          "code"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "Language",
+      "kind": "enum",
+      "package": "domain",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/domain/Language.java",
+      "line": 12,
+      "lines": 50,
+      "summary": "The languages the app speaks: the interface language a user picks and the language letters are written in.",
+      "annotations": [
+        "link"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "enum",
+      "injects": [
+        [
+          "String",
+          "code"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "ThemeMode",
+      "kind": "enum",
+      "package": "domain",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/domain/ThemeMode.java",
+      "line": 7,
+      "lines": 32,
+      "summary": "Dark or light interface.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "enum",
+      "injects": [
+        [
+          "String",
+          "code"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
       "handlers": []
     },
     {
@@ -402,6 +719,118 @@
       "handlers": []
     },
     {
+      "name": "ResendCodeRequest",
+      "kind": "record",
+      "package": "dto.auth.request",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/auth/request/ResendCodeRequest.java",
+      "line": 7,
+      "lines": 13,
+      "summary": "Asks for a new confirmation letter.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "VerifyEmailRequest",
+      "kind": "record",
+      "package": "dto.auth.request",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/auth/request/VerifyEmailRequest.java",
+      "line": 8,
+      "lines": 18,
+      "summary": "The code from the confirmation letter, for the email it was sent to.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "CodeAttemptsResponse",
+      "kind": "record",
+      "package": "dto.auth.response",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/auth/response/CodeAttemptsResponse.java",
+      "line": 4,
+      "lines": 6,
+      "summary": "The data of an \"auth.codeInvalid\" refusal: wrong guesses still allowed for this code.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "RegistrationResponse",
+      "kind": "record",
+      "package": "dto.auth.response",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/auth/response/RegistrationResponse.java",
+      "line": 7,
+      "lines": 11,
+      "summary": "Sign-up accepted: the account waits for its email to be confirmed, and a letter with the code is on its way to email.",
+      "annotations": [
+        "code"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "RetryAfterResponse",
+      "kind": "record",
+      "package": "dto.auth.response",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/auth/response/RetryAfterResponse.java",
+      "line": 4,
+      "lines": 6,
+      "summary": "The data of an \"auth.resendTooSoon\" refusal: seconds until another letter may be asked for.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
       "name": "SessionResponse",
       "kind": "record",
       "package": "dto.auth.response",
@@ -412,6 +841,30 @@
       "lines": 9,
       "summary": "What log in, sign up and refresh answer with (client type `Session`).",
       "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "UnconfirmedEmailResponse",
+      "kind": "record",
+      "package": "dto.auth.response",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/auth/response/UnconfirmedEmailResponse.java",
+      "line": 8,
+      "lines": 11,
+      "summary": "The data of an \"auth.emailNotVerified\" refusal at log in: the right password, an email not yet confirmed.",
+      "annotations": [
+        "code"
+      ],
       "extends": null,
       "implements": [],
       "uses": [],
@@ -452,8 +905,8 @@
       "project": "",
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/common/response/ApiResponse.java",
-      "line": 10,
-      "lines": 28,
+      "line": 11,
+      "lines": 33,
       "summary": "The one shape every endpoint answers with, success or failure alike.",
       "annotations": [
         "code"
@@ -470,17 +923,72 @@
       "handlers": []
     },
     {
+      "name": "UpdateSettingsRequest",
+      "kind": "record",
+      "package": "dto.settings.request",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/settings/request/UpdateSettingsRequest.java",
+      "line": 10,
+      "lines": 25,
+      "summary": "Every pick at once: the client always sends the whole set it shows.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "AccentColor",
+        "Language",
+        "ThemeMode"
+      ],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "SettingsResponse",
+      "kind": "record",
+      "package": "dto.settings.response",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/settings/response/SettingsResponse.java",
+      "line": 13,
+      "lines": 20,
+      "summary": "A user's saved picks (client type `Settings`).",
+      "annotations": [
+        "code"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "AccentColor",
+        "Language",
+        "ThemeMode"
+      ],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
       "name": "ApiException",
       "kind": "class",
       "package": "exception",
       "project": "",
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/exception/ApiException.java",
-      "line": 11,
-      "lines": 24,
-      "summary": "A refusal the client should show: an HTTP status and a message key (\"auth.emailTaken\") that the client translates into the user's language.",
+      "line": 12,
+      "lines": 31,
+      "summary": "A refusal the client should show: an HTTP status and a message key (\"auth.emailTaken\") that the client translates into the user's language, plus, when the client needs more to act on it, a small data…",
       "annotations": [
-        "Getter"
+        "Getter",
+        "code"
       ],
       "extends": "RuntimeException",
       "implements": [],
@@ -569,6 +1077,546 @@
           "line": 64
         }
       ]
+    },
+    {
+      "name": "EmailService",
+      "kind": "class",
+      "package": "mail",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/mail/EmailService.java",
+      "line": 18,
+      "lines": 35,
+      "summary": "Renders a template and hands the letter to the SMTP server configured in `spring.mail.*`.",
+      "annotations": [
+        "RequiredArgsConstructor",
+        "Service"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "AppMailProperties",
+        "Language"
+      ],
+      "test": false,
+      "role": "service",
+      "injects": [
+        [
+          "JavaMailSender",
+          "mailSender"
+        ],
+        [
+          "EmailTemplates",
+          "templates"
+        ],
+        [
+          "AppMailProperties",
+          "properties"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "EmailTemplates",
+      "kind": "class",
+      "package": "mail",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/mail/EmailTemplates.java",
+      "line": 27,
+      "lines": 75,
+      "summary": "The letter templates (location and names in EmailTemplateProperties), filled in by name: every {{key}} becomes its value, HTML-escaped.",
+      "annotations": [
+        "Component",
+        "RequiredArgsConstructor",
+        "code",
+        "link"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "EmailTemplateProperties",
+        "Language"
+      ],
+      "test": false,
+      "role": "component",
+      "injects": [
+        [
+          "ResourceLoader",
+          "resourceLoader"
+        ],
+        [
+          "EmailTemplateProperties",
+          "properties"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "Letter",
+      "kind": "record",
+      "package": "mail",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/mail/Letter.java",
+      "line": 4,
+      "lines": 6,
+      "summary": "A rendered letter: the subject line and the HTML body.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "VerificationCodeIssued",
+      "kind": "record",
+      "package": "mail",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/mail/VerificationCodeIssued.java",
+      "line": 9,
+      "lines": 15,
+      "summary": "A code was saved and its letter should go out.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "Language"
+      ],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "VerificationMailListener",
+      "kind": "class",
+      "package": "mail",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/mail/VerificationMailListener.java",
+      "line": 22,
+      "lines": 43,
+      "summary": "Sends the confirmation letter once the code is safely in the database, on a thread of its own.",
+      "annotations": [
+        "Component",
+        "RequiredArgsConstructor",
+        "Slf4j"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "AppMailProperties",
+        "EmailTemplateProperties"
+      ],
+      "test": false,
+      "role": "component",
+      "injects": [
+        [
+          "EmailService",
+          "emailService"
+        ],
+        [
+          "AppMailProperties",
+          "properties"
+        ],
+        [
+          "EmailTemplateProperties",
+          "templates"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "OneTimeCodeDaoService",
+      "kind": "interface",
+      "package": "persistence.code.dao",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/code/dao/OneTimeCodeDaoService.java",
+      "line": 9,
+      "lines": 21,
+      "summary": "",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "CodePurpose",
+        "OneTimeCode"
+      ],
+      "test": false,
+      "role": "interface",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "OneTimeCodeDaoServiceImpl",
+      "kind": "class",
+      "package": "persistence.code.dao",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/code/dao/OneTimeCodeDaoServiceImpl.java",
+      "line": 16,
+      "lines": 45,
+      "summary": "",
+      "annotations": [
+        "RequiredArgsConstructor",
+        "Service"
+      ],
+      "extends": null,
+      "implements": [
+        "OneTimeCodeDaoService"
+      ],
+      "uses": [
+        "CodePurpose",
+        "OneTimeCode",
+        "OneTimeCodeRepository"
+      ],
+      "test": false,
+      "role": "service",
+      "injects": [
+        [
+          "OneTimeCodeRepository",
+          "oneTimeCodeRepository"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "CodePurpose",
+      "kind": "enum",
+      "package": "persistence.code.entity",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/code/entity/CodePurpose.java",
+      "line": 4,
+      "lines": 8,
+      "summary": "What a one-time code unlocks.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "enum",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "OneTimeCode",
+      "kind": "class",
+      "package": "persistence.code.entity",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/code/entity/OneTimeCode.java",
+      "line": 29,
+      "lines": 63,
+      "summary": "A six-digit code sent by email, kept as a hash, good for a few guesses and a few minutes.",
+      "annotations": [
+        "Entity",
+        "Getter",
+        "NoArgsConstructor",
+        "Setter",
+        "Table"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "User"
+      ],
+      "test": false,
+      "role": "entity",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "table": "one_time_codes",
+      "columns": [
+        {
+          "field": "id",
+          "type": "UUID",
+          "column": null
+        },
+        {
+          "field": "user",
+          "type": "User",
+          "column": null
+        },
+        {
+          "field": "purpose",
+          "type": "CodePurpose",
+          "column": "purpose"
+        },
+        {
+          "field": "codeHash",
+          "type": "String",
+          "column": "code_hash"
+        },
+        {
+          "field": "attemptsLeft",
+          "type": "int",
+          "column": "attempts_left"
+        },
+        {
+          "field": "expiresAt",
+          "type": "Instant",
+          "column": "expires_at"
+        },
+        {
+          "field": "createdAt",
+          "type": "Instant",
+          "column": "created_at"
+        },
+        {
+          "field": "usedAt",
+          "type": "Instant",
+          "column": "used_at"
+        }
+      ],
+      "relations": [
+        {
+          "kind": "ManyToOne",
+          "field": "user"
+        }
+      ]
+    },
+    {
+      "name": "OneTimeCodeRepository",
+      "kind": "interface",
+      "package": "persistence.code.repository",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/code/repository/OneTimeCodeRepository.java",
+      "line": 15,
+      "lines": 28,
+      "summary": "",
+      "annotations": [],
+      "extends": "JpaRepository<OneTimeCode, UUID>",
+      "implements": [],
+      "uses": [
+        "CodePurpose",
+        "OneTimeCode"
+      ],
+      "test": false,
+      "role": "repository",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "entity": "OneTimeCode",
+      "queries": [
+        "deleteActive",
+        "findFirstByUserIdAndPurposeAndUsedAtIsNullOrderByCreatedAtDesc",
+        "findFirstByUserIdAndPurposeOrderByCreatedAtDesc"
+      ]
+    },
+    {
+      "name": "UserSettingsDaoService",
+      "kind": "interface",
+      "package": "persistence.settings.dao",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/settings/dao/UserSettingsDaoService.java",
+      "line": 8,
+      "lines": 14,
+      "summary": "",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "UserSettings"
+      ],
+      "test": false,
+      "role": "interface",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "UserSettingsDaoServiceImpl",
+      "kind": "class",
+      "package": "persistence.settings.dao",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/settings/dao/UserSettingsDaoServiceImpl.java",
+      "line": 14,
+      "lines": 30,
+      "summary": "",
+      "annotations": [
+        "RequiredArgsConstructor",
+        "Service"
+      ],
+      "extends": null,
+      "implements": [
+        "UserSettingsDaoService"
+      ],
+      "uses": [
+        "UserSettings",
+        "UserSettingsRepository"
+      ],
+      "test": false,
+      "role": "service",
+      "injects": [
+        [
+          "UserSettingsRepository",
+          "userSettingsRepository"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "UserSettings",
+      "kind": "class",
+      "package": "persistence.settings.entity",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/settings/entity/UserSettings.java",
+      "line": 25,
+      "lines": 51,
+      "summary": "A user's picks, the same on every device: look, language, the topic opened last.",
+      "annotations": [
+        "Entity",
+        "Getter",
+        "NoArgsConstructor",
+        "Setter",
+        "Table"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "AccentColor",
+        "Language",
+        "ThemeMode"
+      ],
+      "test": false,
+      "role": "entity",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "table": "user_settings",
+      "columns": [
+        {
+          "field": "userId",
+          "type": "UUID",
+          "column": "user_id"
+        },
+        {
+          "field": "mode",
+          "type": "ThemeMode",
+          "column": "theme_mode"
+        },
+        {
+          "field": "accent",
+          "type": "AccentColor",
+          "column": "accent"
+        },
+        {
+          "field": "language",
+          "type": "Language",
+          "column": "language"
+        },
+        {
+          "field": "lastTopicId",
+          "type": "String",
+          "column": "last_topic_id"
+        },
+        {
+          "field": "updatedAt",
+          "type": "Instant",
+          "column": "updated_at"
+        }
+      ],
+      "relations": []
+    },
+    {
+      "name": "UserSettingsMapper",
+      "kind": "interface",
+      "package": "persistence.settings.mapper",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/settings/mapper/UserSettingsMapper.java",
+      "line": 9,
+      "lines": 13,
+      "summary": "",
+      "annotations": [
+        "Mapper"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "MapStructConfig",
+        "SettingsResponse",
+        "UserSettings"
+      ],
+      "test": false,
+      "role": "interface",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "UserSettingsRepository",
+      "kind": "interface",
+      "package": "persistence.settings.repository",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/settings/repository/UserSettingsRepository.java",
+      "line": 8,
+      "lines": 10,
+      "summary": "",
+      "annotations": [],
+      "extends": "JpaRepository<UserSettings, UUID>",
+      "implements": [],
+      "uses": [
+        "UserSettings"
+      ],
+      "test": false,
+      "role": "repository",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "entity": "UserSettings",
+      "queries": []
     },
     {
       "name": "RefreshTokenDaoService",
@@ -799,7 +1847,7 @@
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/user/entity/User.java",
       "line": 27,
-      "lines": 62,
+      "lines": 66,
       "summary": "An account.",
       "annotations": [
         "Entity",
@@ -844,6 +1892,11 @@
           "field": "passwordHash",
           "type": "String",
           "column": "password_hash"
+        },
+        {
+          "field": "emailVerifiedAt",
+          "type": "Instant",
+          "column": "email_verified_at"
         },
         {
           "field": "createdAt",
@@ -1010,6 +2063,28 @@
       "handlers": []
     },
     {
+      "name": "OneTimeCodes",
+      "kind": "class",
+      "package": "security",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/security/OneTimeCodes.java",
+      "line": 13,
+      "lines": 35,
+      "summary": "Six-digit codes for letters.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "class",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
       "name": "OpaqueTokens",
       "kind": "class",
       "package": "security",
@@ -1038,18 +2113,23 @@
       "project": "",
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/auth/AuthWebService.java",
-      "line": 18,
-      "lines": 36,
-      "summary": "Sign-up, log in, refresh, log out.",
-      "annotations": [],
+      "line": 26,
+      "lines": 56,
+      "summary": "Sign-up with email confirmation, log in, refresh, log out.",
+      "annotations": [
+        "code"
+      ],
       "extends": null,
       "implements": [],
       "uses": [
         "LoginRequest",
         "RefreshRequest",
         "RegisterRequest",
+        "RegistrationResponse",
+        "ResendCodeRequest",
         "SessionResponse",
-        "UserResponse"
+        "UserResponse",
+        "VerifyEmailRequest"
       ],
       "test": false,
       "role": "interface",
@@ -1066,12 +2146,13 @@
       "project": "",
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/auth/AuthWebServiceImpl.java",
-      "line": 35,
-      "lines": 155,
+      "line": 51,
+      "lines": 283,
       "summary": "Each method is one transaction: rotation reads a locked row, revokes it and inserts its successor, and those must succeed or fail together.",
       "annotations": [
         "Service",
-        "Slf4j"
+        "Slf4j",
+        "link"
       ],
       "extends": null,
       "implements": [
@@ -1079,19 +2160,32 @@
       ],
       "uses": [
         "ApiException",
+        "CodeAttemptsResponse",
+        "CodePurpose",
         "JwtProperties",
         "JwtService",
+        "Language",
         "LoginRequest",
+        "OneTimeCode",
+        "OneTimeCodeDaoService",
+        "OneTimeCodes",
         "OpaqueTokens",
         "RefreshRequest",
         "RefreshToken",
         "RefreshTokenDaoService",
         "RegisterRequest",
+        "RegistrationResponse",
+        "ResendCodeRequest",
+        "RetryAfterResponse",
         "SessionResponse",
+        "UnconfirmedEmailResponse",
         "User",
         "UserDaoService",
         "UserMapper",
-        "UserResponse"
+        "UserResponse",
+        "VerificationCodeIssued",
+        "VerificationProperties",
+        "VerifyEmailRequest"
       ],
       "test": false,
       "role": "service",
@@ -1103,6 +2197,10 @@
         [
           "RefreshTokenDaoService",
           "refreshTokens"
+        ],
+        [
+          "OneTimeCodeDaoService",
+          "codes"
         ],
         [
           "PasswordEncoder",
@@ -1121,12 +2219,91 @@
           "jwtProperties"
         ],
         [
+          "VerificationProperties",
+          "verification"
+        ],
+        [
+          "ApplicationEventPublisher",
+          "events"
+        ],
+        [
           "Clock",
           "clock"
         ],
         [
           "String",
           "dummyHash"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "SettingsWebService",
+      "kind": "interface",
+      "package": "service.settings",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/settings/SettingsWebService.java",
+      "line": 12,
+      "lines": 20,
+      "summary": "A user's picks kept on the server, so every device they sign in on starts the same: theme, accent, language, the topic opened last.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "SettingsResponse",
+        "UpdateSettingsRequest"
+      ],
+      "test": false,
+      "role": "interface",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "SettingsWebServiceImpl",
+      "kind": "class",
+      "package": "service.settings",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/settings/SettingsWebServiceImpl.java",
+      "line": 17,
+      "lines": 46,
+      "summary": "",
+      "annotations": [
+        "RequiredArgsConstructor",
+        "Service"
+      ],
+      "extends": null,
+      "implements": [
+        "SettingsWebService"
+      ],
+      "uses": [
+        "SettingsResponse",
+        "UpdateSettingsRequest",
+        "UserSettings",
+        "UserSettingsDaoService",
+        "UserSettingsMapper"
+      ],
+      "test": false,
+      "role": "service",
+      "injects": [
+        [
+          "UserSettingsDaoService",
+          "settings"
+        ],
+        [
+          "UserSettingsMapper",
+          "settingsMapper"
+        ],
+        [
+          "Clock",
+          "clock"
         ]
       ],
       "endpoints": [],
@@ -1141,6 +2318,69 @@
       "to": "AuthWebService",
       "kind": "injects",
       "field": "authWebService",
+      "project": ""
+    },
+    {
+      "from": "SettingsController",
+      "to": "SettingsWebService",
+      "kind": "injects",
+      "field": "settingsWebService",
+      "project": ""
+    },
+    {
+      "from": "EmailService",
+      "to": "EmailTemplates",
+      "kind": "injects",
+      "field": "templates",
+      "project": ""
+    },
+    {
+      "from": "EmailService",
+      "to": "AppMailProperties",
+      "kind": "injects",
+      "field": "properties",
+      "project": ""
+    },
+    {
+      "from": "EmailTemplates",
+      "to": "EmailTemplateProperties",
+      "kind": "injects",
+      "field": "properties",
+      "project": ""
+    },
+    {
+      "from": "VerificationMailListener",
+      "to": "EmailService",
+      "kind": "injects",
+      "field": "emailService",
+      "project": ""
+    },
+    {
+      "from": "VerificationMailListener",
+      "to": "AppMailProperties",
+      "kind": "injects",
+      "field": "properties",
+      "project": ""
+    },
+    {
+      "from": "VerificationMailListener",
+      "to": "EmailTemplateProperties",
+      "kind": "injects",
+      "field": "templates",
+      "project": ""
+    },
+    {
+      "from": "OneTimeCodeDaoServiceImpl",
+      "to": "OneTimeCodeRepository",
+      "kind": "injects",
+      "field": "oneTimeCodeRepository",
+      "project": ""
+    },
+    {
+      "from": "UserSettingsDaoServiceImpl",
+      "to": "UserSettingsRepository",
+      "kind": "injects",
+      "field": "userSettingsRepository",
       "project": ""
     },
     {
@@ -1180,6 +2420,13 @@
     },
     {
       "from": "AuthWebServiceImpl",
+      "to": "OneTimeCodeDaoService",
+      "kind": "injects",
+      "field": "codes",
+      "project": ""
+    },
+    {
+      "from": "AuthWebServiceImpl",
       "to": "JwtService",
       "kind": "injects",
       "field": "jwtService",
@@ -1197,6 +2444,27 @@
       "to": "JwtProperties",
       "kind": "injects",
       "field": "jwtProperties",
+      "project": ""
+    },
+    {
+      "from": "AuthWebServiceImpl",
+      "to": "VerificationProperties",
+      "kind": "injects",
+      "field": "verification",
+      "project": ""
+    },
+    {
+      "from": "SettingsWebServiceImpl",
+      "to": "UserSettingsDaoService",
+      "kind": "injects",
+      "field": "settings",
+      "project": ""
+    },
+    {
+      "from": "SettingsWebServiceImpl",
+      "to": "UserSettingsMapper",
+      "kind": "injects",
+      "field": "settingsMapper",
       "project": ""
     }
   ],
@@ -1268,6 +2536,74 @@
         {
           "key": "prep-deck.jwt.refresh-ttl",
           "value": "${JWT_REFRESH_TTL}"
+        },
+        {
+          "key": "spring.mail.host",
+          "value": "${MAIL_HOST}"
+        },
+        {
+          "key": "spring.mail.port",
+          "value": "${MAIL_PORT}"
+        },
+        {
+          "key": "spring.mail.username",
+          "value": "${MAIL_USERNAME}"
+        },
+        {
+          "key": "spring.mail.password",
+          "value": "${MAIL_PASSWORD}"
+        },
+        {
+          "key": "spring.mail.properties.mail.smtp.auth",
+          "value": "${MAIL_SMTP_AUTH}"
+        },
+        {
+          "key": "spring.mail.properties.mail.smtp.starttls.enable",
+          "value": "${MAIL_STARTTLS}"
+        },
+        {
+          "key": "prep-deck.mail.from",
+          "value": "${MAIL_FROM}"
+        },
+        {
+          "key": "prep-deck.mail.support-email",
+          "value": "${MAIL_SUPPORT}"
+        },
+        {
+          "key": "prep-deck.mail.templates.location",
+          "value": "classpath:templates/"
+        },
+        {
+          "key": "prep-deck.mail.templates.suffix",
+          "value": ".html"
+        },
+        {
+          "key": "prep-deck.mail.templates.fallback-language",
+          "value": "EN"
+        },
+        {
+          "key": "prep-deck.mail.templates.verify-email",
+          "value": "verify-email"
+        },
+        {
+          "key": "prep-deck.mail.templates.reset-password",
+          "value": "reset-password"
+        },
+        {
+          "key": "prep-deck.verification.code-ttl",
+          "value": "15m"
+        },
+        {
+          "key": "prep-deck.verification.max-attempts",
+          "value": "5"
+        },
+        {
+          "key": "prep-deck.verification.resend-cooldown",
+          "value": "60s"
+        },
+        {
+          "key": "prep-deck.cors.mapping",
+          "value": "/**"
         },
         {
           "key": "prep-deck.cors.allowed-origins",

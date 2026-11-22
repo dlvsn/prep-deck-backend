@@ -16,6 +16,10 @@ Everything below that is derived and overwritten on every run.
 ## Conventions
 
 - Comments and javadoc in English. No comment at all beats one that restates the code.
+- One type per file: no records, classes or enums nested inside another class.
+- Paths and names of resources (template locations and names, CORS mappings, the error path)
+  live in `application.properties` behind a `@ConfigurationProperties` class, never as literals.
+- A closed set of values is an enum (`Language`, `CodePurpose`), not a `String`.
 - Collaborators arrive by constructor: `private final` fields with Lombok's
   `@RequiredArgsConstructor`.
 - Three layers, each calling only the one below it:
@@ -48,4 +52,9 @@ Everything below that is derived and overwritten on every run.
 - A local PostgreSQL: `docker compose up -d` from `db/` (`db/docker-compose.yaml`, credentials in
   `db/.env`, copied from `db/.env.example`; data in `db/data`, git-ignored). They must match
   `PREPDECK_DB_*` in the root `.env`.
+- Every other local service (Mailpit so far) comes up together from `docker/`:
+  `docker compose up -d` there (`docker/docker-compose.yaml`).
+- Letters: an event published in the transaction, sent by an `@TransactionalEventListener(AFTER_COMMIT)`
+  + `@Async` listener through `EmailService`, from `resources/templates/<name>-<en|uk>.html`.
+  Locally they land in Mailpit (http://localhost:8025, from `docker/docker-compose.yaml`).
 - Build with `mvn` (Java 21). The Maven wrapper is not in the repository.

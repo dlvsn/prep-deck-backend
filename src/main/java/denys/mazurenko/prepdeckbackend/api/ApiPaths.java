@@ -8,6 +8,7 @@ package denys.mazurenko.prepdeckbackend.api;
 public final class ApiPaths {
 
     public static final String AUTH = "/auth";
+    public static final String SETTINGS = "/settings";
 
     private ApiPaths() {
     }
