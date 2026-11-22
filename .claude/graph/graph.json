@@ -1,0 +1,107 @@
+{
+  "generated": "2026-11-22",
+  "projects": [
+    {
+      "dir": ".",
+      "base": "denys.mazurenko.prepdeckbackend",
+      "pom": {
+        "artifactId": "prep-deck-backend",
+        "java": "21",
+        "springBoot": "4.2.0",
+        "dependencies": [
+          "denys.mazurenko:prep-deck-backend",
+          "org.springframework.boot:spring-boot-starter-security",
+          "org.springframework.boot:spring-boot-starter-webmvc",
+          "org.projectlombok:lombok",
+          "org.springframework.boot:spring-boot-starter-security-test",
+          "org.springframework.boot:spring-boot-starter-webmvc-test",
+          "org.springframework.boot:spring-boot-maven-plugin",
+          "org.apache.maven.plugins:maven-compiler-plugin",
+          "org.projectlombok:lombok",
+          "org.projectlombok:lombok"
+        ]
+      },
+      "modules": [
+        {
+          "dir": ".",
+          "base": "denys.mazurenko.prepdeckbackend"
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "name": "PrepDeckBackendApplication",
+      "kind": "class",
+      "package": "(root)",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/PrepDeckBackendApplication.java",
+      "line": 7,
+      "lines": 14,
+      "summary": "",
+      "annotations": [
+        "SpringBootApplication"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "application",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "PrepDeckBackendApplicationTests",
+      "kind": "class",
+      "package": "(root)",
+      "project": "",
+      "module": "",
+      "file": "src/test/java/denys/mazurenko/prepdeckbackend/PrepDeckBackendApplicationTests.java",
+      "line": 7,
+      "lines": 14,
+      "summary": "",
+      "annotations": [
+        "SpringBootTest"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": true,
+      "role": "test",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    }
+  ],
+  "edges": [],
+  "tests": [
+    {
+      "test": "PrepDeckBackendApplicationTests",
+      "covers": "PrepDeckBackendApplication",
+      "project": "",
+      "file": "src/test/java/denys/mazurenko/prepdeckbackend/PrepDeckBackendApplicationTests.java",
+      "line": 7
+    }
+  ],
+  "properties": [
+    {
+      "file": "src/main/resources/application.properties",
+      "keys": [
+        {
+          "key": "spring.application.name",
+          "value": "prep-deck-backend"
+        }
+      ]
+    }
+  ],
+  "database": {
+    "tables": [],
+    "indexes": []
+  }
+}
