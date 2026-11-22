@@ -31,3 +31,10 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Local database (db/docker-compose.yaml) ###
+db/data/
+db/.env
+
+### Local settings and secrets (see .env.example) ###
+.env

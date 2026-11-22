@@ -11,14 +11,22 @@
         "dependencies": [
           "denys.mazurenko:prep-deck-backend",
           "org.springframework.boot:spring-boot-starter-security",
+          "org.springframework.boot:spring-boot-starter-security-oauth2-resource-server",
           "org.springframework.boot:spring-boot-starter-webmvc",
+          "org.springframework.boot:spring-boot-starter-validation",
+          "org.springframework.boot:spring-boot-starter-data-jpa",
+          "org.springframework.boot:spring-boot-starter-flyway",
+          "org.flywaydb:flyway-database-postgresql",
+          "org.postgresql:postgresql",
           "org.projectlombok:lombok",
+          "org.mapstruct:mapstruct",
           "org.springframework.boot:spring-boot-starter-security-test",
           "org.springframework.boot:spring-boot-starter-webmvc-test",
           "org.springframework.boot:spring-boot-maven-plugin",
           "org.apache.maven.plugins:maven-compiler-plugin",
           "org.projectlombok:lombok",
-          "org.projectlombok:lombok"
+          "org.projectlombok:lombok-mapstruct-binding",
+          "org.mapstruct:mapstruct-processor"
         ]
       },
       "modules": [
@@ -31,14 +39,893 @@
   ],
   "nodes": [
     {
+      "name": "ApiPaths",
+      "kind": "class",
+      "package": "api",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/api/ApiPaths.java",
+      "line": 8,
+      "lines": 15,
+      "summary": "Every path prefix, named once for the controllers and the security rules alike.",
+      "annotations": [
+        "code",
+        "link"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "class",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "AuthController",
+      "kind": "class",
+      "package": "api.auth",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/api/auth/AuthController.java",
+      "line": 23,
+      "lines": 81,
+      "summary": "",
+      "annotations": [
+        "RequestMapping",
+        "RequiredArgsConstructor",
+        "RestController"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "ApiPaths",
+        "ApiResponse",
+        "AuthWebService",
+        "LoginRequest",
+        "RefreshRequest",
+        "RegisterRequest",
+        "SessionResponse",
+        "UserResponse"
+      ],
+      "test": false,
+      "role": "controller",
+      "injects": [
+        [
+          "AuthWebService",
+          "authWebService"
+        ]
+      ],
+      "endpoints": [
+        {
+          "http": "POST",
+          "path": "/api/auth/register",
+          "method": "register",
+          "summary": "Creates an account and opens a session for it at once.",
+          "calls": [
+            "AuthWebService"
+          ],
+          "line": 30
+        },
+        {
+          "http": "POST",
+          "path": "/api/auth/login",
+          "method": "login",
+          "summary": "Opens a session by email or username and password.",
+          "calls": [
+            "AuthWebService"
+          ],
+          "line": 40
+        },
+        {
+          "http": "POST",
+          "path": "/api/auth/refresh",
+          "method": "refresh",
+          "summary": "Exchanges a refresh token for a new access token and the next refresh token.",
+          "calls": [
+            "AuthWebService"
+          ],
+          "line": 49
+        },
+        {
+          "http": "POST",
+          "path": "/api/auth/logout",
+          "method": "logout",
+          "summary": "Revokes the session the refresh token belongs to; open, since the access token may have expired.",
+          "calls": [
+            "AuthWebService"
+          ],
+          "line": 58
+        },
+        {
+          "http": "GET",
+          "path": "/api/auth/me",
+          "method": "me",
+          "summary": "The signed-in user.",
+          "calls": [
+            "AuthWebService"
+          ],
+          "line": 68
+        },
+        {
+          "http": "GET",
+          "path": "/api/auth/username-available",
+          "method": "usernameAvailable",
+          "summary": "Whether a username is still free, for the sign-up form's live hint.",
+          "calls": [
+            "AuthWebService"
+          ],
+          "line": 76
+        }
+      ],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "CorsProperties",
+      "kind": "class",
+      "package": "config",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/config/CorsProperties.java",
+      "line": 13,
+      "lines": 18,
+      "summary": "",
+      "annotations": [
+        "ConfigurationProperties",
+        "Getter",
+        "Setter"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "properties",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "prefix": "prep-deck.cors",
+      "keys": [
+        "prep-deck.cors.allowed-origins"
+      ]
+    },
+    {
+      "name": "JwtConfig",
+      "kind": "class",
+      "package": "config",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/config/JwtConfig.java",
+      "line": 26,
+      "lines": 66,
+      "summary": "The key access tokens are signed and checked with (HS256), and the encoder and decoder built on it.",
+      "annotations": [
+        "Configuration",
+        "Slf4j"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "config",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [
+        {
+          "method": "jwtSigningKey",
+          "line": 30
+        },
+        {
+          "method": "jwtEncoder",
+          "line": 47
+        },
+        {
+          "method": "jwtDecoder",
+          "line": 52
+        },
+        {
+          "method": "clock",
+          "line": 61
+        }
+      ],
+      "handlers": []
+    },
+    {
+      "name": "JwtProperties",
+      "kind": "class",
+      "package": "config",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/config/JwtProperties.java",
+      "line": 13,
+      "lines": 24,
+      "summary": "Access tokens are short-lived JWTs; refresh tokens are opaque and live in the database.",
+      "annotations": [
+        "ConfigurationProperties",
+        "Getter",
+        "Setter"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "properties",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "prefix": "prep-deck.jwt",
+      "keys": [
+        "prep-deck.jwt.secret",
+        "prep-deck.jwt.issuer",
+        "prep-deck.jwt.access-ttl",
+        "prep-deck.jwt.refresh-ttl"
+      ]
+    },
+    {
+      "name": "MapStructConfig",
+      "kind": "class",
+      "package": "config",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/config/MapStructConfig.java",
+      "line": 15,
+      "lines": 17,
+      "summary": "Shared settings for every mapper: each one is a Spring bean, receives its collaborators through the constructor, and has its generated implementation in an impl package beside it.",
+      "annotations": [
+        "MapperConfig",
+        "code"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "class",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "SecurityConfig",
+      "kind": "class",
+      "package": "config",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/config/SecurityConfig.java",
+      "line": 28,
+      "lines": 77,
+      "summary": "Stateless JWT security: no session, no CSRF token (nothing rides on a cookie), every request outside the open auth endpoints needs a valid Bearer access token.",
+      "annotations": [
+        "Configuration",
+        "EnableConfigurationProperties"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "ApiPaths",
+        "JsonSecurityErrors"
+      ],
+      "test": false,
+      "role": "config",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [
+        {
+          "method": "securityFilterChain",
+          "line": 30
+        },
+        {
+          "method": "passwordEncoder",
+          "line": 59
+        },
+        {
+          "method": "corsConfigurationSource",
+          "line": 64
+        }
+      ],
+      "handlers": []
+    },
+    {
+      "name": "LoginRequest",
+      "kind": "record",
+      "package": "dto.auth.request",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/auth/request/LoginRequest.java",
+      "line": 6,
+      "lines": 11,
+      "summary": "Log in with an email or a username.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "RefreshRequest",
+      "kind": "record",
+      "package": "dto.auth.request",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/auth/request/RefreshRequest.java",
+      "line": 6,
+      "lines": 8,
+      "summary": "Body of refresh and log out: the refresh token the client holds.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "RegisterRequest",
+      "kind": "record",
+      "package": "dto.auth.request",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/auth/request/RegisterRequest.java",
+      "line": 12,
+      "lines": 27,
+      "summary": "Sign-up.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "SessionResponse",
+      "kind": "record",
+      "package": "dto.auth.response",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/auth/response/SessionResponse.java",
+      "line": 7,
+      "lines": 9,
+      "summary": "What log in, sign up and refresh answer with (client type `Session`).",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "UserResponse",
+      "kind": "record",
+      "package": "dto.auth.response",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/auth/response/UserResponse.java",
+      "line": 6,
+      "lines": 8,
+      "summary": "The user as the client sees them (client type `User`).",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "ApiResponse",
+      "kind": "record",
+      "package": "dto.common.response",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/common/response/ApiResponse.java",
+      "line": 10,
+      "lines": 28,
+      "summary": "The one shape every endpoint answers with, success or failure alike.",
+      "annotations": [
+        "code"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "ApiException",
+      "kind": "class",
+      "package": "exception",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/exception/ApiException.java",
+      "line": 11,
+      "lines": 24,
+      "summary": "A refusal the client should show: an HTTP status and a message key (\"auth.emailTaken\") that the client translates into the user's language.",
+      "annotations": [
+        "Getter"
+      ],
+      "extends": "RuntimeException",
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "exception",
+      "injects": [
+        [
+          "HttpStatus",
+          "status"
+        ],
+        [
+          "String",
+          "messageKey"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "GlobalExceptionHandler",
+      "kind": "class",
+      "package": "exception",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/exception/GlobalExceptionHandler.java",
+      "line": 26,
+      "lines": 70,
+      "summary": "Turns every failure into an ApiResponse, so a client never has to parse a second error format.",
+      "annotations": [
+        "RestControllerAdvice",
+        "Slf4j",
+        "link"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "ApiResponse"
+      ],
+      "test": false,
+      "role": "advice",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [
+        {
+          "method": "handleApi",
+          "handles": [
+            "ApiException"
+          ],
+          "line": 28
+        },
+        {
+          "method": "handleInvalid",
+          "handles": [
+            "MethodArgumentNotValidException"
+          ],
+          "line": 34
+        },
+        {
+          "method": "handleStatus",
+          "handles": [
+            "ResponseStatusException"
+          ],
+          "line": 43
+        },
+        {
+          "method": "handleMvc",
+          "handles": [
+            "NoResourceFoundException",
+            "HttpRequestMethodNotSupportedException",
+            "HttpMediaTypeNotSupportedException",
+            "MissingServletRequestParameterException",
+            "HttpMessageNotReadableException"
+          ],
+          "line": 50
+        },
+        {
+          "method": "handleUnexpected",
+          "handles": [
+            "Exception"
+          ],
+          "line": 64
+        }
+      ]
+    },
+    {
+      "name": "RefreshTokenDaoService",
+      "kind": "interface",
+      "package": "persistence.token.dao",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/token/dao/RefreshTokenDaoService.java",
+      "line": 9,
+      "lines": 19,
+      "summary": "",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "RefreshToken"
+      ],
+      "test": false,
+      "role": "interface",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "RefreshTokenDaoServiceImpl",
+      "kind": "class",
+      "package": "persistence.token.dao",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/token/dao/RefreshTokenDaoServiceImpl.java",
+      "line": 16,
+      "lines": 39,
+      "summary": "",
+      "annotations": [
+        "RequiredArgsConstructor",
+        "Service"
+      ],
+      "extends": null,
+      "implements": [
+        "RefreshTokenDaoService"
+      ],
+      "uses": [
+        "RefreshToken",
+        "RefreshTokenRepository"
+      ],
+      "test": false,
+      "role": "service",
+      "injects": [
+        [
+          "RefreshTokenRepository",
+          "refreshTokenRepository"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "RefreshToken",
+      "kind": "class",
+      "package": "persistence.token.entity",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/token/entity/RefreshToken.java",
+      "line": 30,
+      "lines": 60,
+      "summary": "One issued refresh token, by its SHA-256 only.",
+      "annotations": [
+        "Entity",
+        "Getter",
+        "NoArgsConstructor",
+        "Setter",
+        "Table"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "User"
+      ],
+      "test": false,
+      "role": "entity",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "table": "refresh_tokens",
+      "columns": [
+        {
+          "field": "id",
+          "type": "UUID",
+          "column": null
+        },
+        {
+          "field": "user",
+          "type": "User",
+          "column": null
+        },
+        {
+          "field": "tokenHash",
+          "type": "String",
+          "column": "token_hash"
+        },
+        {
+          "field": "familyId",
+          "type": "UUID",
+          "column": "family_id"
+        },
+        {
+          "field": "expiresAt",
+          "type": "Instant",
+          "column": "expires_at"
+        },
+        {
+          "field": "createdAt",
+          "type": "Instant",
+          "column": "created_at"
+        },
+        {
+          "field": "revokedAt",
+          "type": "Instant",
+          "column": "revoked_at"
+        }
+      ],
+      "relations": [
+        {
+          "kind": "ManyToOne",
+          "field": "user"
+        }
+      ]
+    },
+    {
+      "name": "RefreshTokenRepository",
+      "kind": "interface",
+      "package": "persistence.token.repository",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/token/repository/RefreshTokenRepository.java",
+      "line": 15,
+      "lines": 29,
+      "summary": "",
+      "annotations": [],
+      "extends": "JpaRepository<RefreshToken, UUID>",
+      "implements": [],
+      "uses": [
+        "RefreshToken"
+      ],
+      "test": false,
+      "role": "repository",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "entity": "RefreshToken",
+      "queries": [
+        "findByHashForUpdate",
+        "revokeFamily"
+      ]
+    },
+    {
+      "name": "UserDaoService",
+      "kind": "interface",
+      "package": "persistence.user.dao",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/user/dao/UserDaoService.java",
+      "line": 8,
+      "lines": 21,
+      "summary": "",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "User"
+      ],
+      "test": false,
+      "role": "interface",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "UserDaoServiceImpl",
+      "kind": "class",
+      "package": "persistence.user.dao",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/user/dao/UserDaoServiceImpl.java",
+      "line": 14,
+      "lines": 48,
+      "summary": "",
+      "annotations": [
+        "RequiredArgsConstructor",
+        "Service"
+      ],
+      "extends": null,
+      "implements": [
+        "UserDaoService"
+      ],
+      "uses": [
+        "User",
+        "UserRepository"
+      ],
+      "test": false,
+      "role": "service",
+      "injects": [
+        [
+          "UserRepository",
+          "userRepository"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "User",
+      "kind": "class",
+      "package": "persistence.user.entity",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/user/entity/User.java",
+      "line": 27,
+      "lines": 62,
+      "summary": "An account.",
+      "annotations": [
+        "Entity",
+        "Getter",
+        "NoArgsConstructor",
+        "Setter",
+        "Table"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "entity",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "table": "users",
+      "columns": [
+        {
+          "field": "id",
+          "type": "UUID",
+          "column": null
+        },
+        {
+          "field": "email",
+          "type": "String",
+          "column": "email"
+        },
+        {
+          "field": "username",
+          "type": "String",
+          "column": "username"
+        },
+        {
+          "field": "displayName",
+          "type": "String",
+          "column": "display_name"
+        },
+        {
+          "field": "passwordHash",
+          "type": "String",
+          "column": "password_hash"
+        },
+        {
+          "field": "createdAt",
+          "type": "Instant",
+          "column": "created_at"
+        },
+        {
+          "field": "updatedAt",
+          "type": "Instant",
+          "column": "updated_at"
+        }
+      ],
+      "relations": []
+    },
+    {
+      "name": "UserMapper",
+      "kind": "interface",
+      "package": "persistence.user.mapper",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/user/mapper/UserMapper.java",
+      "line": 10,
+      "lines": 15,
+      "summary": "",
+      "annotations": [
+        "Mapper"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "MapStructConfig",
+        "User",
+        "UserResponse"
+      ],
+      "test": false,
+      "role": "interface",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "UserRepository",
+      "kind": "interface",
+      "package": "persistence.user.repository",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/user/repository/UserRepository.java",
+      "line": 9,
+      "lines": 19,
+      "summary": "",
+      "annotations": [],
+      "extends": "JpaRepository<User, UUID>",
+      "implements": [],
+      "uses": [
+        "User"
+      ],
+      "test": false,
+      "role": "repository",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "entity": "User",
+      "queries": [
+        "existsByEmail",
+        "existsByUsername",
+        "findByEmail",
+        "findByUsername"
+      ]
+    },
+    {
       "name": "PrepDeckBackendApplication",
       "kind": "class",
       "package": "(root)",
       "project": "",
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/PrepDeckBackendApplication.java",
-      "line": 7,
-      "lines": 14,
+      "line": 9,
+      "lines": 19,
       "summary": "",
       "annotations": [
         "SpringBootApplication"
@@ -55,40 +942,265 @@
       "handlers": []
     },
     {
-      "name": "PrepDeckBackendApplicationTests",
+      "name": "JsonSecurityErrors",
       "kind": "class",
-      "package": "(root)",
+      "package": "security",
       "project": "",
       "module": "",
-      "file": "src/test/java/denys/mazurenko/prepdeckbackend/PrepDeckBackendApplicationTests.java",
-      "line": 7,
-      "lines": 14,
-      "summary": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/security/JsonSecurityErrors.java",
+      "line": 24,
+      "lines": 46,
+      "summary": "401 and 403 from the security filters, in the same ApiResponse shape as everything else.",
       "annotations": [
-        "SpringBootTest"
+        "Component"
+      ],
+      "extends": null,
+      "implements": [
+        "AuthenticationEntryPoint",
+        "AccessDeniedHandler"
+      ],
+      "uses": [],
+      "test": false,
+      "role": "component",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "JwtService",
+      "kind": "class",
+      "package": "security",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/security/JwtService.java",
+      "line": 19,
+      "lines": 38,
+      "summary": "Signs access tokens.",
+      "annotations": [
+        "Component",
+        "RequiredArgsConstructor"
       ],
       "extends": null,
       "implements": [],
+      "uses": [
+        "JwtProperties",
+        "User"
+      ],
+      "test": false,
+      "role": "component",
+      "injects": [
+        [
+          "JwtEncoder",
+          "jwtEncoder"
+        ],
+        [
+          "JwtProperties",
+          "properties"
+        ],
+        [
+          "Clock",
+          "clock"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "OpaqueTokens",
+      "kind": "class",
+      "package": "security",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/security/OpaqueTokens.java",
+      "line": 14,
+      "lines": 36,
+      "summary": "Refresh tokens: 256 random bits for the client, their SHA-256 for the database.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
       "uses": [],
-      "test": true,
-      "role": "test",
+      "test": false,
+      "role": "class",
       "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "AuthWebService",
+      "kind": "interface",
+      "package": "service.auth",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/auth/AuthWebService.java",
+      "line": 18,
+      "lines": 36,
+      "summary": "Sign-up, log in, refresh, log out.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "LoginRequest",
+        "RefreshRequest",
+        "RegisterRequest",
+        "SessionResponse",
+        "UserResponse"
+      ],
+      "test": false,
+      "role": "interface",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "AuthWebServiceImpl",
+      "kind": "class",
+      "package": "service.auth",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/auth/AuthWebServiceImpl.java",
+      "line": 35,
+      "lines": 155,
+      "summary": "Each method is one transaction: rotation reads a locked row, revokes it and inserts its successor, and those must succeed or fail together.",
+      "annotations": [
+        "Service",
+        "Slf4j"
+      ],
+      "extends": null,
+      "implements": [
+        "AuthWebService"
+      ],
+      "uses": [
+        "ApiException",
+        "JwtProperties",
+        "JwtService",
+        "LoginRequest",
+        "OpaqueTokens",
+        "RefreshRequest",
+        "RefreshToken",
+        "RefreshTokenDaoService",
+        "RegisterRequest",
+        "SessionResponse",
+        "User",
+        "UserDaoService",
+        "UserMapper",
+        "UserResponse"
+      ],
+      "test": false,
+      "role": "service",
+      "injects": [
+        [
+          "UserDaoService",
+          "users"
+        ],
+        [
+          "RefreshTokenDaoService",
+          "refreshTokens"
+        ],
+        [
+          "PasswordEncoder",
+          "passwordEncoder"
+        ],
+        [
+          "JwtService",
+          "jwtService"
+        ],
+        [
+          "UserMapper",
+          "userMapper"
+        ],
+        [
+          "JwtProperties",
+          "jwtProperties"
+        ],
+        [
+          "Clock",
+          "clock"
+        ],
+        [
+          "String",
+          "dummyHash"
+        ]
+      ],
       "endpoints": [],
       "jobs": [],
       "beans": [],
       "handlers": []
     }
   ],
-  "edges": [],
-  "tests": [
+  "edges": [
     {
-      "test": "PrepDeckBackendApplicationTests",
-      "covers": "PrepDeckBackendApplication",
-      "project": "",
-      "file": "src/test/java/denys/mazurenko/prepdeckbackend/PrepDeckBackendApplicationTests.java",
-      "line": 7
+      "from": "AuthController",
+      "to": "AuthWebService",
+      "kind": "injects",
+      "field": "authWebService",
+      "project": ""
+    },
+    {
+      "from": "RefreshTokenDaoServiceImpl",
+      "to": "RefreshTokenRepository",
+      "kind": "injects",
+      "field": "refreshTokenRepository",
+      "project": ""
+    },
+    {
+      "from": "UserDaoServiceImpl",
+      "to": "UserRepository",
+      "kind": "injects",
+      "field": "userRepository",
+      "project": ""
+    },
+    {
+      "from": "JwtService",
+      "to": "JwtProperties",
+      "kind": "injects",
+      "field": "properties",
+      "project": ""
+    },
+    {
+      "from": "AuthWebServiceImpl",
+      "to": "UserDaoService",
+      "kind": "injects",
+      "field": "users",
+      "project": ""
+    },
+    {
+      "from": "AuthWebServiceImpl",
+      "to": "RefreshTokenDaoService",
+      "kind": "injects",
+      "field": "refreshTokens",
+      "project": ""
+    },
+    {
+      "from": "AuthWebServiceImpl",
+      "to": "JwtService",
+      "kind": "injects",
+      "field": "jwtService",
+      "project": ""
+    },
+    {
+      "from": "AuthWebServiceImpl",
+      "to": "UserMapper",
+      "kind": "injects",
+      "field": "userMapper",
+      "project": ""
+    },
+    {
+      "from": "AuthWebServiceImpl",
+      "to": "JwtProperties",
+      "kind": "injects",
+      "field": "jwtProperties",
+      "project": ""
     }
   ],
+  "tests": [],
   "properties": [
     {
       "file": "src/main/resources/application.properties",
@@ -96,6 +1208,70 @@
         {
           "key": "spring.application.name",
           "value": "prep-deck-backend"
+        },
+        {
+          "key": "server.port",
+          "value": "8080"
+        },
+        {
+          "key": "spring.config.import",
+          "value": "optional:file:.env[.properties]"
+        },
+        {
+          "key": "server.servlet.context-path",
+          "value": "/api"
+        },
+        {
+          "key": "spring.datasource.url",
+          "value": "${PREPDECK_DB_URL}"
+        },
+        {
+          "key": "spring.datasource.username",
+          "value": "${PREPDECK_DB_USER}"
+        },
+        {
+          "key": "spring.datasource.password",
+          "value": "${PREPDECK_DB_PASSWORD}"
+        },
+        {
+          "key": "spring.jpa.hibernate.ddl-auto",
+          "value": "validate"
+        },
+        {
+          "key": "spring.jpa.open-in-view",
+          "value": "false"
+        },
+        {
+          "key": "spring.jpa.properties.hibernate.default_schema",
+          "value": "prep_deck"
+        },
+        {
+          "key": "spring.jpa.properties.hibernate.jdbc.time_zone",
+          "value": "UTC"
+        },
+        {
+          "key": "spring.flyway.locations",
+          "value": "classpath:db/migration"
+        },
+        {
+          "key": "prep-deck.jwt.secret",
+          "value": "${JWT_SECRET}"
+        },
+        {
+          "key": "prep-deck.jwt.issuer",
+          "value": "${JWT_ISSUER}"
+        },
+        {
+          "key": "prep-deck.jwt.access-ttl",
+          "value": "${JWT_ACCESS_TTL}"
+        },
+        {
+          "key": "prep-deck.jwt.refresh-ttl",
+          "value": "${JWT_REFRESH_TTL}"
+        },
+        {
+          "key": "prep-deck.cors.allowed-origins",
+          "value": "http://localhost:5173"
         }
       ]
     }

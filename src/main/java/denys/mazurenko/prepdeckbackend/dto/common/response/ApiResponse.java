@@ -1,4 +1,4 @@
-package denys.mazurenko.prepdeckbackend.api;
+package denys.mazurenko.prepdeckbackend.dto.common.response;
 
 /**
  * The one shape every endpoint answers with, success or failure alike.

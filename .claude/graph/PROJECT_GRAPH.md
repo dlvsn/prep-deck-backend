@@ -6,47 +6,83 @@ Locations are paths under a module's `src/main/java/<base package>/`, the module
 
 ## What this is
 
-The backend of **prep-deck**, a pet project built to show what can be done with AI assistance.
-One Spring Boot service, and two clients that will talk to it:
+The backend of **prep-deck**, a desktop app for preparing for interviews, languages and any other
+subject: question → answer cards in nested topics, spaced-repetition practice, and topics shared
+with other people. Built as a pet project to show what can be done with AI assistance.
 
-- **desktop**: an Electron application, the first client to be built;
-- **web**: the same interface served to a browser, planned for later.
+The client is a separate repository (`prep-deck-client`, an Electron application) that sits next
+to this one under one parent folder. A web version of the same client is planned. The client's
+spec — topics, cards, practice grades, sharing roles — is what this API is being built to serve;
+its `src/renderer/api/repositories.ts` lists every call it will make, and its mocks show what each
+answers.
 
-The project is at its very start: a Spring Initializr skeleton with the application class and
-nothing else. What the application does is not settled yet; this section is to be rewritten
-once it is.
+Built so far: accounts and sessions (`/api/auth/**`). Topics, cards, practice and sharing follow.
 
 ## Decisions already taken
 
-**One backend, on a server.** Spring runs in one place and both clients reach it over HTTP. The
-desktop installer does not carry Java or this service with it: bundling it would make the
-installer hundreds of megabytes larger and give every machine a database of its own, and the
-point of two clients is that a user sees the same data from either. During development the
-backend runs on `localhost`; a release changes only the API address the clients are built with.
+**One backend, on a server.** Spring runs in one place and every client reaches it over HTTP.
+The desktop installer does not carry Java or this service with it.
 
-**The interface is a web application; Electron is a thin shell around it.** The UI is meant to
-live in its own React + TypeScript + Vite project and to work unchanged in a browser. Electron
-adds a main process and a preload script and loads the built UI files. Anything only a desktop
-can do (native file dialogs, tray, system notifications) sits behind an interface the web build
-implements its own way. So the web version costs a deployment, not a rewrite.
+**The clients know this service through its REST API alone.** Nothing here may depend on which
+client is calling, so a desktop-only shortcut (reading the user's disk, say) is never an option.
 
-**The clients know this service through its REST API alone.** Nothing in the backend may depend
-on which client is calling. Whatever the desktop needs, the browser must be able to get the same
-way. That rules out, for example, reading files from the user's disk on the server side.
+**One response shape, with message keys.** Every endpoint answers with `ApiResponse<T>`:
+`success`, `message`, `data`. `message` is a key from the client's i18n files
+(`auth.invalidCredentials`), which the client shows in the user's language; it is never prose.
+`GlobalExceptionHandler` makes that shape out of every exception, `JsonSecurityErrors` out of the
+401s and 403s the security filters raise before any controller runs.
+
+**Layers.** Repository → DAO service (CRUD only, transactions) → web service (business rules,
+DTOs) → controller. Each layer calls only the one beneath it; a controller never touches a
+repository, and a web service never returns an entity.
+
+## Sessions
+
+A session is two tokens:
+
+- an **access token**: a JWT signed with HS256 (`JwtConfig`), 15 minutes, subject = user id.
+  Spring Security's resource server checks it on every request outside the open auth endpoints;
+  controllers read the user id from `@AuthenticationPrincipal Jwt`;
+- a **refresh token**: 256 random bits handed to the client once. The database keeps only its
+  SHA-256 (`refresh_tokens.token_hash`), 30 days.
+
+**A refresh token works once.** `AuthWebServiceImpl.refresh` locks the row, revokes it, and issues the
+next token in the same `family_id`. A revoked token that comes back can only be a stolen copy:
+the whole family is revoked and both holders have to log in again. That revocation must survive
+the 401 that follows, hence `noRollbackFor = ApiException.class`. Log out revokes the family too.
+
+**Passwords** are stored as `DelegatingPasswordEncoder` hashes (BCrypt, `{bcrypt}` prefix) and
+upgraded on log in if the settings ever get stronger. A login that matches no account is still
+checked against a dummy hash, so response times do not tell which accounts exist. Every 401 from
+the security filters says `errors.sessionExpired`: the client refreshes once and otherwise shows
+the login screen.
+
+Email and username are stored lower-cased (the table checks it), so their unique constraints are
+case-insensitive.
 
 ## Things to know before changing code
 
-- `spring-boot-starter-security` is on the classpath, so every endpoint is locked behind HTTP
-  Basic with a password generated at start-up until a `SecurityFilterChain` says otherwise. A new
-  endpoint answering `401` is that, not a bug in the endpoint.
-- The browser client will run on another origin than the API, so CORS has to be configured once
-  the web version exists. Electron in production loads from `file://` and needs it too.
-- Spring Boot 4.2, Java 21 (`java.version` in the pom), Lombok for constructor injection.
+- Settings come from env variables, locally from `.env` beside `pom.xml` (imported by
+  `spring.config.import`; keys in `.env.example`). The JWT key is `JWT_SECRET` (≥ 32 bytes);
+  left empty, a random key is made per start: access tokens die with the process, refresh tokens
+  live on in the database.
+- `server.servlet.context-path=/api`: every path in code — `ApiPaths`, the `SecurityConfig`
+  matchers, the CORS mapping — is relative to it. `ApiPaths.AUTH = "/auth"` answers at `/api/auth`.
+- The JVM runs in UTC (`PrepDeckBackendApplication.main`). Without it the PostgreSQL driver sends
+  the machine's zone on connect, and on Windows that is `Europe/Kiev`, which PostgreSQL refuses.
+- Flyway owns the schema: `V1.0.0__create_schema.sql` creates `prep_deck`, every later file adds
+  to it; Flyway's own history table stays in `public`. Hibernate only validates.
+- CORS allows `prep-deck.cors.allowed-origins` (the client's dev server for now). The packaged
+  Electron app loads from `file://` and will need its origin added when it talks to a server.
+- Not built yet, though the client already calls them: password reset (needs an email sender).
+- Spring Boot 4.2, Java 21, Lombok, MapStruct 1.6, PostgreSQL 17 (run locally from `db/`: `docker compose up -d`, data in `db/data`).
 
 ## Where to start
 
-- A new endpoint: a `@RestController` next to the application class, in a package named after
-  the feature, not after the layer.
+- A new feature: a Flyway migration, then `persistence/<feature>/{entity,repository,dao,mapper}`,
+  `dto/<feature>/{request,response}`, `service/<feature>`, `api/<feature>`, and a path in
+  `ApiPaths`.
+- A new open endpoint: add it to the `permitAll()` list in `SecurityConfig`.
 - Settings: `src/main/resources/application.properties`.
 
 ## 1. Entry points
@@ -55,7 +91,14 @@ Everything this application does starts at one of these.
 
 ### HTTP
 
-_none_
+| Method | Path | Handler | What it does | Where |
+|---|---|---|---|---|
+| `POST` | `/api/auth/register` | AuthController.register() | Creates an account and opens a session for it at once. | `api/auth/AuthController.java:30` |
+| `POST` | `/api/auth/login` | AuthController.login() | Opens a session by email or username and password. | `api/auth/AuthController.java:40` |
+| `POST` | `/api/auth/refresh` | AuthController.refresh() | Exchanges a refresh token for a new access token and the next refresh token. | `api/auth/AuthController.java:49` |
+| `POST` | `/api/auth/logout` | AuthController.logout() | Revokes the session the refresh token belongs to; open, since the access token may have expired. | `api/auth/AuthController.java:58` |
+| `GET` | `/api/auth/me` | AuthController.me() | The signed-in user. | `api/auth/AuthController.java:68` |
+| `GET` | `/api/auth/username-available` | AuthController.usernameAvailable() | Whether a username is still free, for the sign-up form's live hint. | `api/auth/AuthController.java:76` |
 
 ### Scheduled jobs
 
@@ -65,11 +108,24 @@ _none_
 
 | What | When | Where |
 |---|---|---|
-| PrepDeckBackendApplication.main() | boots Spring | `PrepDeckBackendApplication.java:7` |
+| PrepDeckBackendApplication.main() | boots Spring | `PrepDeckBackendApplication.java:9` |
 
 ## 2. Flows
 
 Constructor-injection trees from each entry point. Configuration property classes, enums, records and exceptions are left out to keep the shape readable.
+
+**AuthController — HTTP**
+
+```
+AuthController  [controller]
+  AuthWebService → AuthWebServiceImpl  [service]
+    JwtService  [component]
+    RefreshTokenDaoService → RefreshTokenDaoServiceImpl  [service]
+      RefreshTokenRepository  [repository]
+    UserDaoService → UserDaoServiceImpl  [service]
+      UserRepository  [repository]
+    UserMapper  [interface]
+```
 
 ## 3. Classes by package
 
@@ -77,15 +133,130 @@ Constructor-injection trees from each entry point. Configuration property classe
 
 | Class | Role | Summary | Injects | Where |
 |---|---|---|---|---|
-| **PrepDeckBackendApplication** | application | - | - | `PrepDeckBackendApplication.java:7` |
+| **PrepDeckBackendApplication** | application | - | - | `PrepDeckBackendApplication.java:9` |
+
+### `api`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **ApiPaths** | class | Every path prefix, named once for the controllers and the security rules alike. | - | `api/ApiPaths.java:8` |
+
+### `api.auth`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **AuthController** | controller | - | AuthWebService | `api/auth/AuthController.java:23` |
+
+### `config`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **JwtConfig** | config | The key access tokens are signed and checked with (HS256), and the encoder and decoder built on it. | - | `config/JwtConfig.java:26` |
+| **SecurityConfig** | config | Stateless JWT security: no session, no CSRF token (nothing rides on a cookie), every request outside the open auth endpoints needs a valid Bearer access token. | - | `config/SecurityConfig.java:28` |
+| **CorsProperties** | properties | - | - | `config/CorsProperties.java:13` |
+| **JwtProperties** | properties | Access tokens are short-lived JWTs; refresh tokens are opaque and live in the database. | - | `config/JwtProperties.java:13` |
+| **MapStructConfig** | class | Shared settings for every mapper: each one is a Spring bean, receives its collaborators through the constructor, and has its generated implementation in an impl package beside it. | - | `config/MapStructConfig.java:15` |
+
+### `dto.auth.request`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **LoginRequest** | record | Log in with an email or a username. | - | `dto/auth/request/LoginRequest.java:6` |
+| **RefreshRequest** | record | Body of refresh and log out: the refresh token the client holds. | - | `dto/auth/request/RefreshRequest.java:6` |
+| **RegisterRequest** | record | Sign-up. | - | `dto/auth/request/RegisterRequest.java:12` |
+
+### `dto.auth.response`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **SessionResponse** | record | What log in, sign up and refresh answer with (client type `Session`). | - | `dto/auth/response/SessionResponse.java:7` |
+| **UserResponse** | record | The user as the client sees them (client type `User`). | - | `dto/auth/response/UserResponse.java:6` |
+
+### `dto.common.response`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **ApiResponse** | record | The one shape every endpoint answers with, success or failure alike. | - | `dto/common/response/ApiResponse.java:10` |
+
+### `exception`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **GlobalExceptionHandler** | advice | Turns every failure into an ApiResponse, so a client never has to parse a second error format. | - | `exception/GlobalExceptionHandler.java:26` |
+| **ApiException** | exception | A refusal the client should show: an HTTP status and a message key ("auth.emailTaken") that the client translates into the user's language. | HttpStatus, String | `exception/ApiException.java:11` |
+
+### `persistence.token.dao`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **RefreshTokenDaoServiceImpl** | service | - | RefreshTokenRepository | `persistence/token/dao/RefreshTokenDaoServiceImpl.java:16` |
+| **RefreshTokenDaoService** | interface | - | - | `persistence/token/dao/RefreshTokenDaoService.java:9` |
+
+### `persistence.token.entity`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **RefreshToken** | entity | One issued refresh token, by its SHA-256 only. | - | `persistence/token/entity/RefreshToken.java:30` |
+
+### `persistence.token.repository`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **RefreshTokenRepository** | repository | - | - | `persistence/token/repository/RefreshTokenRepository.java:15` |
+
+### `persistence.user.dao`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **UserDaoServiceImpl** | service | - | UserRepository | `persistence/user/dao/UserDaoServiceImpl.java:14` |
+| **UserDaoService** | interface | - | - | `persistence/user/dao/UserDaoService.java:8` |
+
+### `persistence.user.entity`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **User** | entity | An account. | - | `persistence/user/entity/User.java:27` |
+
+### `persistence.user.mapper`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **UserMapper** | interface | - | - | `persistence/user/mapper/UserMapper.java:10` |
+
+### `persistence.user.repository`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **UserRepository** | repository | - | - | `persistence/user/repository/UserRepository.java:9` |
+
+### `security`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **JsonSecurityErrors** | component | 401 and 403 from the security filters, in the same ApiResponse shape as everything else. | - | `security/JsonSecurityErrors.java:24` |
+| **JwtService** | component | Signs access tokens. | Clock, JwtEncoder, JwtProperties | `security/JwtService.java:19` |
+| **OpaqueTokens** | class | Refresh tokens: 256 random bits for the client, their SHA-256 for the database. | - | `security/OpaqueTokens.java:14` |
+
+### `service.auth`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **AuthWebServiceImpl** | service | Each method is one transaction: rotation reads a locked row, revokes it and inserts its successor, and those must succeed or fail together. | Clock, JwtProperties, JwtService, PasswordEncoder, RefreshTokenDaoService, String, UserDaoService, UserMapper | `service/auth/AuthWebServiceImpl.java:35` |
+| **AuthWebService** | interface | Sign-up, log in, refresh, log out. | - | `service/auth/AuthWebService.java:18` |
 
 ## 4. Data model
 
-_none_
+| Entity | Kind | Table | Fields | Repository | Where |
+|---|---|---|---|---|---|
+| **RefreshToken** | entity | `refresh_tokens` | 7 | RefreshTokenRepository | `persistence/token/entity/RefreshToken.java:30` |
+| **User** | entity | `users` | 7 | UserRepository | `persistence/user/entity/User.java:27` |
 
 ### Repositories
 
-_none_
+| Repository | Entity | Methods | Where |
+|---|---|---|---|
+| **RefreshTokenRepository** | RefreshToken | `findByHashForUpdate()`, `revokeFamily()` | `persistence/token/repository/RefreshTokenRepository.java:15` |
+| **UserRepository** | User | `existsByEmail()`, `existsByUsername()`, `findByEmail()`, `findByUsername()` | `persistence/user/repository/UserRepository.java:9` |
 
 ### Tables (Liquibase)
 
@@ -97,40 +268,59 @@ _none_
 
 ## 5. Configuration
 
-_none_
+| Properties class | Prefix | Keys | Read by | Where |
+|---|---|---|---|---|
+| **CorsProperties** | `prep-deck.cors` | 1 | - | `config/CorsProperties.java:13` |
+| **JwtProperties** | `prep-deck.jwt` | 4 | AuthWebServiceImpl, JwtService | `config/JwtProperties.java:13` |
 
 ### Keys
 
+- **CorsProperties** -- `prep-deck.cors.allowed-origins`
+- **JwtProperties** -- `prep-deck.jwt.secret`, `prep-deck.jwt.issuer`, `prep-deck.jwt.access-ttl`, `prep-deck.jwt.refresh-ttl`
 
 ### Property files
 
 | File | Keys |
 |---|---|
-| `src/main/resources/application.properties` | 1 |
+| `src/main/resources/application.properties` | 17 |
 
 ### Beans built by hand
 
-_none_
+| Bean | Declared in | Where |
+|---|---|---|
+| `jwtSigningKey()` | JwtConfig | `config/JwtConfig.java:30` |
+| `jwtEncoder()` | JwtConfig | `config/JwtConfig.java:47` |
+| `jwtDecoder()` | JwtConfig | `config/JwtConfig.java:52` |
+| `clock()` | JwtConfig | `config/JwtConfig.java:61` |
+| `securityFilterChain()` | SecurityConfig | `config/SecurityConfig.java:30` |
+| `passwordEncoder()` | SecurityConfig | `config/SecurityConfig.java:59` |
+| `corsConfigurationSource()` | SecurityConfig | `config/SecurityConfig.java:64` |
 
 ## 6. Errors
 
-_none_
+| Exception | Handled by | Where |
+|---|---|---|
+| ApiException | GlobalExceptionHandler.handleApi() | `exception/GlobalExceptionHandler.java:28` |
+| MethodArgumentNotValidException | GlobalExceptionHandler.handleInvalid() | `exception/GlobalExceptionHandler.java:34` |
+| ResponseStatusException | GlobalExceptionHandler.handleStatus() | `exception/GlobalExceptionHandler.java:43` |
+| NoResourceFoundException, HttpRequestMethodNotSupportedException, HttpMediaTypeNotSupportedException, MissingServletRequestParameterException, HttpMessageNotReadableException | GlobalExceptionHandler.handleMvc() | `exception/GlobalExceptionHandler.java:50` |
+| Exception | GlobalExceptionHandler.handleUnexpected() | `exception/GlobalExceptionHandler.java:64` |
 
-_none_
+| Exception | Meaning | Where |
+|---|---|---|
+| **ApiException** | A refusal the client should show: an HTTP status and a message key ("auth.emailTaken") that the client translates into the user's language. | `exception/ApiException.java:11` |
 
 ## 7. Tests
 
-| Test | Covers | What that class does | Where |
-|---|---|---|---|
-| **PrepDeckBackendApplicationTests** | PrepDeckBackendApplication | - | `test/PrepDeckBackendApplicationTests.java` |
+_none_
 
 ## 8. Numbers
 
-- main classes: **1** (14 lines)
-- test classes: **1** (14 lines)
-- by role: application 1
-- injection edges: **0**
-- `.` — 1 main classes, package `denys.mazurenko.prepdeckbackend`, Spring Boot 4.2.0, Java 21, artifact `prep-deck-backend`
+- main classes: **30** (1125 lines)
+- test classes: **0** (0 lines)
+- by role: advice 1, application 1, class 3, component 2, config 2, controller 1, entity 2, exception 1, interface 4, properties 2, record 6, repository 2, service 3
+- injection edges: **9**
+- `.` — 30 main classes, package `denys.mazurenko.prepdeckbackend`, Spring Boot 4.2.0, Java 21, artifact `prep-deck-backend`
 
 ---
 

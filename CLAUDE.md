@@ -22,11 +22,30 @@ Everything below that is derived and overwritten on every run.
   - `persistence/<feature>/repository` — Spring Data interfaces;
   - `persistence/<feature>/dao` — `<Name>DaoService` + `<Name>DaoServiceImpl`: plain CRUD over
     the repository, `@Transactional` here, no business rules;
-  - `service/<feature>` — the web service: business logic, works through DAO services only and
-    returns DTOs, never entities;
+  - `service/<feature>` — the web service, `<Name>WebService` + `<Name>WebServiceImpl`: business
+    logic, works through DAO services only and
+    returns DTOs, never entities. It opens its own transaction only
+    when one operation spans several DAO calls that must commit together (refresh-token rotation);
   - `api/<feature>` — `@RestController`s, thin, calling the web service.
 - Entities live in `persistence/<feature>/entity`, mappers in `persistence/<feature>/mapper`.
+- DTOs live in `dto`: `dto/<feature>/{request,response}` for one feature's (`RegisterRequest`,
+  `SessionResponse`), `dto/common/{request,response}` for what several share (`ApiResponse`).
+  Bodies coming in end in `Request`, bodies going out in `Response`; mappers call it `toResponse`.
 - Mappers are MapStruct interfaces carrying `@Mapper(config = MapStructConfig.class)`.
+- The context path is `/api` (`server.servlet.context-path`); paths in code (`ApiPaths`,
+  security matchers) leave it out: `ApiPaths.AUTH = "/auth"` is served at `/api/auth`.
 - Every endpoint returns `ApiResponse<T>` (`success`, `message`, `data`). Failures become one in
   `GlobalExceptionHandler`; a controller never builds an error body by hand.
+- `message` is a key from the client's i18n files (`auth.emailTaken`, `errors.sessionExpired`),
+  never prose: the client shows it in the user's language. Business refusals throw
+  `ApiException(status, key)`; Bean Validation messages are keys too.
+- Schema changes are Flyway SQL in `src/main/resources/db/migration/`, named
+  `V<major>.<minor>.<patch>__<what>.sql` (`V1.0.1__create_users.sql`). Tables live in the
+  `prep_deck` schema. Never edit a migration that has run anywhere; add the next one.
+  Hibernate runs with `ddl-auto=validate` and refuses to start when an entity and its table disagree.
+- Settings and secrets come from env variables; locally from `.env` next to `pom.xml`
+  (git-ignored, keys listed in `.env.example`), which `application.properties` imports.
+- A local PostgreSQL: `docker compose up -d` from `db/` (`db/docker-compose.yaml`, credentials in
+  `db/.env`, copied from `db/.env.example`; data in `db/data`, git-ignored). They must match
+  `PREPDECK_DB_*` in the root `.env`.
 - Build with `mvn` (Java 21). The Maven wrapper is not in the repository.

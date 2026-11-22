@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Regenerates the project graph that coding agents read instead of the whole source tree.
 
-Version 9 (2026-09-11). This script is copied between projects; bump the number whenever you
+Version 12 (2026-11-22): injection trees go through an interface to its only implementation.
+Version 11: endpoint paths carry the module's `server.servlet.context-path`.
+Version 10: request paths written as String constants (`@RequestMapping(ApiPaths.AUTH)`,
+`ApiPaths.AUTH + "/x"`) are resolved instead of dropped. This script is copied between projects; bump the number whenever you
 change it, so the newest copy is the one that says so rather than the one you have to diff.
 
 A repository can hold more than one project: a single Maven module, a multi-module build, or --
@@ -359,7 +362,86 @@ def method_after(text: str, pos: int) -> str | None:
     return None
 
 
-def paths_from_args(args: str) -> list[str]:
+CONST_DECL_RE = re.compile(r"static\s+final\s+String\s+(\w+)\s*=\s*([^;]+);")
+CONST_TERM_RE = re.compile(r'"[^"]*"|[A-Za-z_][\w.]*')
+
+
+def collect_string_constants() -> dict[str, str]:
+    """`Class.NAME` -> value for every String constant made of literals and other constants.
+
+    Paths are often named once in a constants class (`ApiPaths.AUTH = API + "/auth"`) and used in
+    the mapping annotations. Reading only literals there printed `/register` where the server
+    answers `/api/auth/register`. A constant built any other way (a method call, a ternary) stays
+    unresolved and the annotation falls back to its literals, as before.
+    """
+    raw: dict[str, str] = {}
+    for src in MAIN_SRCS:
+        for path in src.rglob("*.java"):
+            text = path.read_text(encoding="utf-8", errors="replace")
+            decl = TYPE_DECL_RE.search(text)
+            if decl:
+                for name, expr in CONST_DECL_RE.findall(text):
+                    raw[f"{decl.group(2)}.{name}"] = expr
+
+    resolved: dict[str, str] = {}
+
+    def resolve(key: str, seen: frozenset[str]) -> str | None:
+        if key in resolved:
+            return resolved[key]
+        if key not in raw or key in seen:
+            return None
+        value = evaluate(raw[key], key.split(".")[0], seen | {key})
+        if value is not None:
+            resolved[key] = value
+        return value
+
+    def evaluate(expr: str, owner: str, seen: frozenset[str]) -> str | None:
+        terms = CONST_TERM_RE.findall(expr)
+        if not terms or CONST_TERM_RE.sub("", expr).replace("+", "").strip():
+            return None
+        parts = []
+        for term in terms:
+            if term.startswith('"'):
+                parts.append(term[1:-1])
+                continue
+            ref = ".".join(term.split(".")[-2:]) if "." in term else f"{owner}.{term}"
+            value = resolve(ref, seen)
+            if value is None:
+                return None
+            parts.append(value)
+        return "".join(parts)
+
+    for key in raw:
+        resolve(key, frozenset())
+    collect_string_constants.evaluate = evaluate  # type: ignore[attr-defined]
+    return resolved
+
+
+STRING_CONSTANTS = collect_string_constants()
+
+
+def context_path(module_dir: Path | None) -> str:
+    """The module's `server.servlet.context-path`, which prefixes every endpoint it serves.
+
+    Without it, an application that moves `/api` into that property printed every path short
+    of what a client has to call.
+    """
+    if module_dir is None:
+        return ""
+    props = module_dir / "src" / "main" / "resources" / "application.properties"
+    if not props.exists():
+        return ""
+    text = props.read_text(encoding="utf-8", errors="replace")
+    m = re.search(r"(?m)^\s*server\.servlet\.context-path\s*=\s*(\S+)", text)
+    return m.group(1).rstrip("/") if m else ""
+
+
+def paths_from_args(args: str, owner: str = "") -> list[str]:
+    expr = re.sub(r"^\s*(?:value|path)\s*=\s*", "", args.strip())
+    if expr and not expr.startswith("{") and not expr.startswith('"'):
+        value = collect_string_constants.evaluate(expr, owner, frozenset())  # type: ignore[attr-defined]
+        if value is not None:
+            return [value]
     quoted = re.findall(r'"([^"]*)"', args)
     return quoted or [""]
 
@@ -547,7 +629,8 @@ def parse_java(path: Path, is_test: bool) -> dict | None:
         return sorted({by_field[f] for f in by_field if re.search(r"\b" + re.escape(f) + r"\b", slice_text)})
 
     # endpoints, jobs, beans, handlers ---------------------------------------
-    base_path = paths_from_args(ann_args["RequestMapping"])[0] if "RequestMapping" in ann_args else ""
+    base_path = paths_from_args(ann_args["RequestMapping"], name)[0] if "RequestMapping" in ann_args else ""
+    context = context_path(module.get("dir"))
     endpoints: list[dict] = []
     jobs: list[dict] = []
     beans: list[dict] = []
@@ -569,9 +652,9 @@ def parse_java(path: Path, is_test: bool) -> dict | None:
         calls = collaborators(method_body(body, k))
         line = line_of(text, header_end + m.start())
         if ann in MAPPING_ANNOTATIONS:
-            for p in paths_from_args(args):
+            for p in paths_from_args(args, name):
                 if p.startswith("/") or not p:
-                    endpoints.append({"http": MAPPING_ANNOTATIONS[ann], "path": (base_path + p) or "/",
+                    endpoints.append({"http": MAPPING_ANNOTATIONS[ann], "path": context + ((base_path + p) or "/"),
                                       "method": method, "summary": doc, "calls": calls, "line": line})
         elif ann == "Scheduled":
             pairs = re.findall(r'(\w+)\s*=\s*"([^"]*)"', args)
@@ -775,6 +858,15 @@ def dependency_tree(graph: dict, root: str, project: str = "", depth: int = 3) -
         if e.get("project", "") == project:
             out_edges.setdefault(e["from"], []).append(e["to"])
 
+    # An interface with a single implementation (`FooDaoService` and `FooDaoServiceImpl`) is one
+    # collaborator written twice. Stopping at the interface ended every tree at the first layer.
+    impls: dict[str, list[str]] = {}
+    for n in by_name.values():
+        if n.get("test"):
+            continue
+        for iface in n.get("implements", []):
+            impls.setdefault(re.sub(r"<.*", "", iface).split(".")[-1], []).append(n["name"])
+
     lines: list[str] = []
 
     def walk(name: str, level: int, seen: frozenset[str]) -> None:
@@ -783,7 +875,14 @@ def dependency_tree(graph: dict, root: str, project: str = "", depth: int = 3) -
             return
         indent = "  " * level
         role = node["role"]
-        lines.append(f"{indent}{name}" + ("" if role == "class" else f"  [{role}]"))
+        through = impls.get(name, [])
+        if node["kind"] == "interface" and len(through) == 1 and through[0] in by_name:
+            impl = by_name[through[0]]
+            lines.append(f"{indent}{name} → {impl['name']}  [{impl['role']}]")
+            seen = seen | {name}
+            name = impl["name"]
+        else:
+            lines.append(f"{indent}{name}" + ("" if role == "class" else f"  [{role}]"))
         if level >= depth or name in seen:
             return
         for child in sorted(set(out_edges.get(name, []))):
