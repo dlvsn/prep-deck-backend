@@ -38,3 +38,6 @@ db/.env
 
 ### Local settings and secrets (see .env.example) ###
 .env
+
+### Uploaded card images when IMAGES_DIR points inside the project ###
+data/

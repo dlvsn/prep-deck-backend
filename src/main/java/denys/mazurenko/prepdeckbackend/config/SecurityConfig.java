@@ -47,6 +47,8 @@ public class SecurityConfig {
                                 ApiPaths.AUTH + "/refresh",
                                 ApiPaths.AUTH + "/logout").permitAll()
                         .requestMatchers(HttpMethod.GET, ApiPaths.AUTH + "/username-available").permitAll()
+                        // Pictures load through <img>, which sends no token; their ids are random.
+                        .requestMatchers(HttpMethod.GET, ApiPaths.IMAGES + ApiPaths.IMAGE_CONTENT.replace("{id}", "*")).permitAll()
                         .requestMatchers(errorPath).permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(rs -> rs

@@ -14,6 +14,9 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -52,12 +55,20 @@ public class GlobalExceptionHandler {
             HttpRequestMethodNotSupportedException.class,
             HttpMediaTypeNotSupportedException.class,
             MissingServletRequestParameterException.class,
+            MissingServletRequestPartException.class,
+            MethodArgumentTypeMismatchException.class,
             HttpMessageNotReadableException.class
     })
     public ResponseEntity<ApiResponse<Void>> handleMvc(Exception e) {
         HttpStatusCode status = e instanceof ErrorResponse er ? er.getStatusCode() : HttpStatus.BAD_REQUEST;
         String key = status.value() == 404 ? "errors.notFound" : "errors.badRequest";
         return ResponseEntity.status(status).body(ApiResponse.error(key));
+    }
+
+    /** A file past spring.servlet.multipart.max-file-size, refused before any controller runs. */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<Void>> handleTooLarge(MaxUploadSizeExceededException e) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(ApiResponse.error("images.tooLarge"));
     }
 
     /** Anything unforeseen: logged in full here, never leaked to the client. */

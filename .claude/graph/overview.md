@@ -10,7 +10,8 @@ spec — topics, cards, practice grades, sharing roles — is what this API is b
 its `src/renderer/api/repositories.ts` lists every call it will make, and its mocks show what each
 answers.
 
-Built so far: accounts and sessions (`/api/auth/**`). Topics, cards, practice and sharing follow.
+Built so far: accounts and sessions (`/api/auth/**`), settings, topics, cards and card pictures.
+The client has no mocks any more and talks to this service only. Practice and sharing follow.
 
 ## Decisions already taken
 
@@ -24,7 +25,8 @@ client is calling, so a desktop-only shortcut (reading the user's disk, say) is 
 `success`, `message`, `data`. `message` is a key from the client's i18n files
 (`auth.invalidCredentials`), which the client shows in the user's language; it is never prose.
 `GlobalExceptionHandler` makes that shape out of every exception, `JsonSecurityErrors` out of the
-401s and 403s the security filters raise before any controller runs.
+401s and 403s the security filters raise before any controller runs. The one exception is
+`GET /images/{id}/content`, which answers a picture's bytes.
 
 **Layers.** Repository → DAO service (CRUD only, transactions) → web service (business rules,
 DTOs) → controller. Each layer calls only the one beneath it; a controller never touches a
@@ -87,7 +89,48 @@ language, the topic opened last. One `user_settings` row per user, made on the f
 values. After sign-in the server's copy wins; every later change is sent as the whole set.
 The enums (`ThemeMode`, `AccentColor`, `Language` in `domain/`) travel as the client's lower-case
 codes (`@JsonValue`/`@JsonCreator`) and are stored as their names. `last_topic_id` is a plain
-string while topics live only in the client; it becomes a UUID foreign key with the topics table.
+string; it may become a UUID foreign key to `topics` (the client already falls back to the first
+topic when the saved one is gone).
+
+## Topics and cards
+
+**Topics** are a tree per owner (`topics.parent_id`, `position` among siblings), read whole and
+flat (`GET /topics`, each with `cardCount` of the cards directly in it); the client builds the tree
+and sums subtrees. Create appends after the siblings; `POST /topics/{id}/move` reorders and
+renumbers both sets of siblings in one transaction and refuses `topics.moveIntoItself`. Delete
+leaves the subtree and its cards to `ON DELETE CASCADE`.
+
+**Access goes through `TopicGuard.require` alone**: today a topic is its owner's only, and
+anyone else's answers 404 `errors.noAccess` (ids cannot be probed). Card calls check the card's
+topic. `TopicResponse.role` is always `owner`, `shared`/`unseen` false, `dueCount` 0; sharing
+will widen `TopicGuard` and fill these, not change the services that call it.
+
+**Cards**: question (≤ 500), Markdown answer (≤ 20 000), tags in `card_tags` (lower case, no `#`,
+no repeats, ≤ 10, normalised by the server), pictures in `card_images` in display order. Lists are
+newest first. `PATCH /cards/{id}` changes only the fields it carries; `topicId` moves the card.
+`POST /cards/{id}/duplicate` takes the copy's question from the client (it is localised: "… (copy)",
+"… (копія)") and shares the original's image rows. `status` is always `new` and `dueAt` null until
+practice exists; editing never touches progress.
+
+## Card pictures
+
+Pictures go up **before** the card is saved: `POST /images` (multipart `file`, `width`, `height`;
+the client has already scaled it to ≤ 2560 px) answers `{ id, url, width, height }`, and the card
+then sends `imageIds` in order. The format is recognised by the first bytes (`ImageType.sniff`:
+PNG, JPEG, WebP, GIF), not the name; over 10 MB is 413 `images.tooLarge`. Only the uploader can
+put an image on a card, or a card that already shows it.
+
+The bytes go through `ImageFileStore`, chosen by `IMAGES_STORAGE` (`prep-deck.images.storage`):
+`LOCAL` writes one file per image id to `IMAGES_DIR` (`DiskImageFileStoreImpl`); `S3` puts one
+object per id, keyed `images/<id>`, into an S3-compatible bucket (`S3ImageFileStoreImpl`, AWS SDK
+v2, client in `ImageStorageConfig`). The project uses Cloudflare R2: endpoint
+`https://<account id>.r2.cloudflarestorage.com`, region `auto`, path-style addressing, checksums
+only where required. The bucket stays private: pictures are still served through
+`GET /images/{id}/content`, so the client never learns where they are kept. The row and the
+object are written in one transaction; the upload to the bucket runs inside it. `url` is absolute
+(`ImageUrls`, from the request's host) and **open without a token**, since an `<img>` sends none:
+the id is a random UUID. An upload no card refers to is removed after `orphan-ttl` (24 h) by
+`OrphanImageCleanupJob`, every `cleanup-interval`.
 
 ## Things to know before changing code
 
@@ -103,6 +146,8 @@ string while topics live only in the client; it becomes a UUID foreign key with 
   to it; Flyway's own history table stays in `public`. Hibernate only validates.
 - CORS allows `prep-deck.cors.allowed-origins` (the client's dev server for now). The packaged
   Electron app loads from `file://` and will need its origin added when it talks to a server.
+- Uploaded pictures sit in `IMAGES_DIR` (`./data/images`, git-ignored) with `IMAGES_STORAGE=LOCAL`,
+  or in the bucket from `S3_*` with `S3`. Files of a deleted account are not swept yet.
 - Not built yet, though the client already calls them: password reset. Its templates exist and
   `one_time_codes` already allows `RESET_PASSWORD`.
 - Spring Boot 4.2, Java 21, Lombok, MapStruct 1.6, PostgreSQL 17 (run locally from `db/`: `docker compose up -d`, data in `db/data`).

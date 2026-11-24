@@ -1,5 +1,5 @@
 {
-  "generated": "2026-11-22",
+  "generated": "2026-11-24",
   "projects": [
     {
       "dir": ".",
@@ -10,6 +10,7 @@
         "springBoot": "4.2.0",
         "dependencies": [
           "denys.mazurenko:prep-deck-backend",
+          "software.amazon.awssdk:bom",
           "org.springframework.boot:spring-boot-starter-security",
           "org.springframework.boot:spring-boot-starter-security-oauth2-resource-server",
           "org.springframework.boot:spring-boot-starter-webmvc",
@@ -19,6 +20,8 @@
           "org.springframework.boot:spring-boot-starter-mail",
           "org.flywaydb:flyway-database-postgresql",
           "org.postgresql:postgresql",
+          "software.amazon.awssdk:s3",
+          "software.amazon.awssdk:netty-nio-client",
           "org.projectlombok:lombok",
           "org.mapstruct:mapstruct",
           "org.springframework.boot:spring-boot-starter-security-test",
@@ -47,7 +50,7 @@
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/api/ApiPaths.java",
       "line": 8,
-      "lines": 16,
+      "lines": 21,
       "summary": "Every path prefix, named once for the controllers and the security rules alike.",
       "annotations": [
         "code",
@@ -189,6 +192,153 @@
       "handlers": []
     },
     {
+      "name": "CardController",
+      "kind": "class",
+      "package": "api.card",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/api/card/CardController.java",
+      "line": 30,
+      "lines": 82,
+      "summary": "",
+      "annotations": [
+        "RequestMapping",
+        "RequiredArgsConstructor",
+        "RestController"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "ApiPaths",
+        "ApiResponse",
+        "CardResponse",
+        "CardWebService",
+        "DuplicateCardRequest",
+        "UpdateCardRequest"
+      ],
+      "test": false,
+      "role": "controller",
+      "injects": [
+        [
+          "CardWebService",
+          "cardWebService"
+        ]
+      ],
+      "endpoints": [
+        {
+          "http": "GET",
+          "path": "/api/cards/tags",
+          "method": "tags",
+          "summary": "Every tag on the signed-in user's cards, for suggestions in the editor.",
+          "calls": [
+            "CardWebService"
+          ],
+          "line": 37
+        },
+        {
+          "http": "GET",
+          "path": "/api/cards/{id}",
+          "method": "get",
+          "summary": "One card.",
+          "calls": [
+            "CardWebService"
+          ],
+          "line": 45
+        },
+        {
+          "http": "PATCH",
+          "path": "/api/cards/{id}",
+          "method": "update",
+          "summary": "Changes the fields that are set; a topicId moves the card to that topic.",
+          "calls": [
+            "CardWebService"
+          ],
+          "line": 53
+        },
+        {
+          "http": "DELETE",
+          "path": "/api/cards/{id}",
+          "method": "delete",
+          "summary": "Deletes a card.",
+          "calls": [
+            "CardWebService"
+          ],
+          "line": 62
+        },
+        {
+          "http": "POST",
+          "path": "/api/cards/{id}/duplicate",
+          "method": "duplicate",
+          "summary": "Copies a card into the same topic with its tags and images and no practice progress.",
+          "calls": [
+            "CardWebService"
+          ],
+          "line": 71
+        }
+      ],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "ImageController",
+      "kind": "class",
+      "package": "api.image",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/api/image/ImageController.java",
+      "line": 31,
+      "lines": 63,
+      "summary": "",
+      "annotations": [
+        "RequestMapping",
+        "RequiredArgsConstructor",
+        "RestController"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "ApiPaths",
+        "ApiResponse",
+        "ImageContent",
+        "ImageResponse",
+        "ImageWebService"
+      ],
+      "test": false,
+      "role": "controller",
+      "injects": [
+        [
+          "ImageWebService",
+          "imageWebService"
+        ]
+      ],
+      "endpoints": [
+        {
+          "http": "POST",
+          "path": "/api/images",
+          "method": "upload",
+          "summary": "Uploads a picture before the card is saved (multipart: file, width, height); the card then lists its id.",
+          "calls": [
+            "ImageWebService"
+          ],
+          "line": 41
+        },
+        {
+          "http": "GET",
+          "path": "/api/images/{id}/content",
+          "method": "content",
+          "summary": "A picture's bytes; open without a token so an img tag can load it.",
+          "calls": [
+            "ImageWebService"
+          ],
+          "line": 53
+        }
+      ],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
       "name": "SettingsController",
       "kind": "class",
       "package": "api.settings",
@@ -247,6 +397,123 @@
       "handlers": []
     },
     {
+      "name": "TopicController",
+      "kind": "class",
+      "package": "api.topic",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/api/topic/TopicController.java",
+      "line": 34,
+      "lines": 106,
+      "summary": "",
+      "annotations": [
+        "RequestMapping",
+        "RequiredArgsConstructor",
+        "RestController"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "ApiPaths",
+        "ApiResponse",
+        "CardResponse",
+        "CardWebService",
+        "CreateCardRequest",
+        "CreateTopicRequest",
+        "MoveTopicRequest",
+        "RenameTopicRequest",
+        "TopicResponse",
+        "TopicWebService"
+      ],
+      "test": false,
+      "role": "controller",
+      "injects": [
+        [
+          "TopicWebService",
+          "topicWebService"
+        ],
+        [
+          "CardWebService",
+          "cardWebService"
+        ]
+      ],
+      "endpoints": [
+        {
+          "http": "GET",
+          "path": "/api/topics",
+          "method": "listMine",
+          "summary": "The signed-in user's topics, flat, with the number of cards directly in each.",
+          "calls": [
+            "TopicWebService"
+          ],
+          "line": 42
+        },
+        {
+          "http": "POST",
+          "path": "/api/topics",
+          "method": "create",
+          "summary": "Creates a topic at the end of its parent's children (parentId null: a root).",
+          "calls": [
+            "TopicWebService"
+          ],
+          "line": 50
+        },
+        {
+          "http": "PATCH",
+          "path": "/api/topics/{id}",
+          "method": "rename",
+          "summary": "Renames a topic.",
+          "calls": [
+            "TopicWebService"
+          ],
+          "line": 60
+        },
+        {
+          "http": "POST",
+          "path": "/api/topics/{id}/move",
+          "method": "move",
+          "summary": "Moves a topic under a new parent at a given place; a topic cannot go inside itself.",
+          "calls": [
+            "TopicWebService"
+          ],
+          "line": 69
+        },
+        {
+          "http": "DELETE",
+          "path": "/api/topics/{id}",
+          "method": "delete",
+          "summary": "Deletes a topic with its subtopics and all their cards.",
+          "calls": [
+            "TopicWebService"
+          ],
+          "line": 78
+        },
+        {
+          "http": "GET",
+          "path": "/api/topics/{id}/cards",
+          "method": "cards",
+          "summary": "The cards directly in a topic, newest first.",
+          "calls": [
+            "CardWebService"
+          ],
+          "line": 87
+        },
+        {
+          "http": "POST",
+          "path": "/api/topics/{id}/cards",
+          "method": "createCard",
+          "summary": "Creates a card in the topic from its question, answer, tags and already uploaded images.",
+          "calls": [
+            "CardWebService"
+          ],
+          "line": 95
+        }
+      ],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
       "name": "AppMailProperties",
       "kind": "class",
       "package": "config",
@@ -291,6 +558,62 @@
         "Async",
         "Configuration",
         "EnableAsync"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "config",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "CardProperties",
+      "kind": "class",
+      "package": "config",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/config/CardProperties.java",
+      "line": 11,
+      "lines": 16,
+      "summary": "Limits on a card's content that are a product decision rather than a column size.",
+      "annotations": [
+        "ConfigurationProperties",
+        "Getter",
+        "Setter"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "properties",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "prefix": "prep-deck.cards",
+      "keys": [
+        "prep-deck.cards.max-tags"
+      ]
+    },
+    {
+      "name": "ContentConfig",
+      "kind": "class",
+      "package": "config",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/config/ContentConfig.java",
+      "line": 11,
+      "lines": 13,
+      "summary": "Topics, cards and their pictures: their settings, and the scheduled removal of unused uploads.",
+      "annotations": [
+        "Configuration",
+        "EnableConfigurationProperties",
+        "EnableScheduling"
       ],
       "extends": null,
       "implements": [],
@@ -370,6 +693,110 @@
         "prep-deck.mail.templates.verify-email",
         "prep-deck.mail.templates.reset-password"
       ]
+    },
+    {
+      "name": "ImageProperties",
+      "kind": "class",
+      "package": "config",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/config/ImageProperties.java",
+      "line": 16,
+      "lines": 36,
+      "summary": "Card pictures: where the files are kept, what is accepted, when unused uploads go.",
+      "annotations": [
+        "ConfigurationProperties",
+        "Getter",
+        "Setter"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "ImageStorageType"
+      ],
+      "test": false,
+      "role": "properties",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "prefix": "prep-deck.images",
+      "keys": [
+        "prep-deck.images.storage",
+        "prep-deck.images.directory",
+        "prep-deck.images.max-size",
+        "prep-deck.images.max-per-card",
+        "prep-deck.images.orphan-ttl",
+        "prep-deck.images.cleanup-interval"
+      ]
+    },
+    {
+      "name": "ImageS3Properties",
+      "kind": "class",
+      "package": "config",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/config/ImageS3Properties.java",
+      "line": 15,
+      "lines": 31,
+      "summary": "The S3 bucket card pictures go to when prep-deck.images.storage=S3.",
+      "annotations": [
+        "ConfigurationProperties",
+        "Getter",
+        "Setter",
+        "code"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "properties",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "prefix": "prep-deck.images.s3",
+      "keys": [
+        "prep-deck.images.s3.endpoint",
+        "prep-deck.images.s3.region",
+        "prep-deck.images.s3.bucket",
+        "prep-deck.images.s3.key-prefix",
+        "prep-deck.images.s3.access-key-id",
+        "prep-deck.images.s3.secret-access-key"
+      ]
+    },
+    {
+      "name": "ImageStorageConfig",
+      "kind": "class",
+      "package": "config",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/config/ImageStorageConfig.java",
+      "line": 21,
+      "lines": 49,
+      "summary": "The S3 client, made only when pictures are kept in a bucket (prep-deck.images.storage=S3).",
+      "annotations": [
+        "ConditionalOnProperty",
+        "Configuration",
+        "code"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "config",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [
+        {
+          "method": "imageS3Client",
+          "line": 28
+        }
+      ],
+      "handlers": []
     },
     {
       "name": "JwtConfig",
@@ -504,7 +931,7 @@
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/config/SecurityConfig.java",
       "line": 29,
-      "lines": 80,
+      "lines": 82,
       "summary": "Stateless JWT security: no session, no CSRF token (nothing rides on a cookie), every request outside the open auth endpoints needs a valid Bearer access token.",
       "annotations": [
         "Configuration",
@@ -528,11 +955,11 @@
         },
         {
           "method": "passwordEncoder",
-          "line": 63
+          "line": 65
         },
         {
           "method": "corsConfigurationSource",
-          "line": 68
+          "line": 70
         }
       ],
       "handlers": []
@@ -597,6 +1024,82 @@
       "handlers": []
     },
     {
+      "name": "CardStatus",
+      "kind": "enum",
+      "package": "domain",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/domain/CardStatus.java",
+      "line": 11,
+      "lines": 21,
+      "summary": "Where a card stands for the caller, worked out from their practice.",
+      "annotations": [
+        "link"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "enum",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "ImageStorageType",
+      "kind": "enum",
+      "package": "domain",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/domain/ImageStorageType.java",
+      "line": 4,
+      "lines": 10,
+      "summary": "Where uploaded card pictures are kept.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "enum",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "ImageType",
+      "kind": "enum",
+      "package": "domain",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/domain/ImageType.java",
+      "line": 12,
+      "lines": 46,
+      "summary": "The picture formats a card accepts, recognised by their first bytes rather than the file name.",
+      "annotations": [
+        "Getter",
+        "RequiredArgsConstructor"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "enum",
+      "injects": [
+        [
+          "String",
+          "mediaType"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
       "name": "Language",
       "kind": "enum",
       "package": "domain",
@@ -647,6 +1150,30 @@
           "code"
         ]
       ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "TopicRole",
+      "kind": "enum",
+      "package": "domain",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/domain/TopicRole.java",
+      "line": 11,
+      "lines": 21,
+      "summary": "The caller's role on a topic.",
+      "annotations": [
+        "link"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "enum",
+      "injects": [],
       "endpoints": [],
       "jobs": [],
       "beans": [],
@@ -899,6 +1426,101 @@
       "handlers": []
     },
     {
+      "name": "CreateCardRequest",
+      "kind": "record",
+      "package": "dto.card.request",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/card/request/CreateCardRequest.java",
+      "line": 14,
+      "lines": 30,
+      "summary": "A new card.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "DuplicateCardRequest",
+      "kind": "record",
+      "package": "dto.card.request",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/card/request/DuplicateCardRequest.java",
+      "line": 9,
+      "lines": 14,
+      "summary": "The copy's question, already in the user's language (\"… (copy)\", \"… (копія)\"); null keeps the original's question as it is.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "UpdateCardRequest",
+      "kind": "record",
+      "package": "dto.card.request",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/card/request/UpdateCardRequest.java",
+      "line": 13,
+      "lines": 27,
+      "summary": "Changes to a card; a field left null stays as it is.",
+      "annotations": [
+        "code"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "CardResponse",
+      "kind": "record",
+      "package": "dto.card.response",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/card/response/CardResponse.java",
+      "line": 14,
+      "lines": 18,
+      "summary": "A card as the client shows it (client type `Card`).",
+      "annotations": [
+        "code"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "CardStatus",
+        "ImageResponse"
+      ],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
       "name": "ApiResponse",
       "kind": "record",
       "package": "dto.common.response",
@@ -908,6 +1530,30 @@
       "line": 11,
       "lines": 33,
       "summary": "The one shape every endpoint answers with, success or failure alike.",
+      "annotations": [
+        "code"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "ImageResponse",
+      "kind": "record",
+      "package": "dto.image.response",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/image/response/ImageResponse.java",
+      "line": 6,
+      "lines": 8,
+      "summary": "An uploaded picture (client type `CardImage`); url is absolute and opens without a token.",
       "annotations": [
         "code"
       ],
@@ -977,6 +1623,101 @@
       "handlers": []
     },
     {
+      "name": "CreateTopicRequest",
+      "kind": "record",
+      "package": "dto.topic.request",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/topic/request/CreateTopicRequest.java",
+      "line": 9,
+      "lines": 17,
+      "summary": "A new topic at the end of its parent's children; parentId null makes a root.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "MoveTopicRequest",
+      "kind": "record",
+      "package": "dto.topic.request",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/topic/request/MoveTopicRequest.java",
+      "line": 11,
+      "lines": 18,
+      "summary": "A new place: under parentId (null: the top level), at order among the new siblings counted without the topic itself.",
+      "annotations": [
+        "code"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "RenameTopicRequest",
+      "kind": "record",
+      "package": "dto.topic.request",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/topic/request/RenameTopicRequest.java",
+      "line": 6,
+      "lines": 12,
+      "summary": "",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "TopicResponse",
+      "kind": "record",
+      "package": "dto.topic.response",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/topic/response/TopicResponse.java",
+      "line": 14,
+      "lines": 17,
+      "summary": "One topic of the flat list the client builds its tree from (client type `Topic`).",
+      "annotations": [
+        "code"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "TopicRole",
+        "UserResponse"
+      ],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
       "name": "ApiException",
       "kind": "class",
       "package": "exception",
@@ -1017,8 +1758,8 @@
       "project": "",
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/exception/GlobalExceptionHandler.java",
-      "line": 26,
-      "lines": 70,
+      "line": 29,
+      "lines": 81,
       "summary": "Turns every failure into an ApiResponse, so a client never has to parse a second error format.",
       "annotations": [
         "RestControllerAdvice",
@@ -1042,21 +1783,21 @@
           "handles": [
             "ApiException"
           ],
-          "line": 28
+          "line": 31
         },
         {
           "method": "handleInvalid",
           "handles": [
             "MethodArgumentNotValidException"
           ],
-          "line": 34
+          "line": 37
         },
         {
           "method": "handleStatus",
           "handles": [
             "ResponseStatusException"
           ],
-          "line": 43
+          "line": 46
         },
         {
           "method": "handleMvc",
@@ -1065,18 +1806,71 @@
             "HttpRequestMethodNotSupportedException",
             "HttpMediaTypeNotSupportedException",
             "MissingServletRequestParameterException",
+            "MissingServletRequestPartException",
+            "MethodArgumentTypeMismatchException",
             "HttpMessageNotReadableException"
           ],
-          "line": 50
+          "line": 53
+        },
+        {
+          "method": "handleTooLarge",
+          "handles": [
+            "MaxUploadSizeExceededException"
+          ],
+          "line": 69
         },
         {
           "method": "handleUnexpected",
           "handles": [
             "Exception"
           ],
-          "line": 64
+          "line": 75
         }
       ]
+    },
+    {
+      "name": "OrphanImageCleanupJob",
+      "kind": "class",
+      "package": "job",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/job/OrphanImageCleanupJob.java",
+      "line": 16,
+      "lines": 29,
+      "summary": "Removes pictures that were uploaded for a card that was never saved, or taken off every card, once they are older than prep-deck.images.orphan-ttl.",
+      "annotations": [
+        "Component",
+        "RequiredArgsConstructor",
+        "Slf4j",
+        "code"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "ImageWebService"
+      ],
+      "test": false,
+      "role": "component",
+      "injects": [
+        [
+          "ImageWebService",
+          "imageWebService"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [
+        {
+          "method": "run",
+          "every": "initialDelay=${prep-deck.images.cleanup-interval}, fixedDelay=${prep-deck.images.cleanup-interval}",
+          "summary": "",
+          "calls": [
+            "ImageWebService"
+          ],
+          "line": 20
+        }
+      ],
+      "beans": [],
+      "handlers": []
     },
     {
       "name": "EmailService",
@@ -1241,6 +2035,223 @@
           "templates"
         ]
       ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "CardDaoService",
+      "kind": "interface",
+      "package": "persistence.card.dao",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/card/dao/CardDaoService.java",
+      "line": 11,
+      "lines": 27,
+      "summary": "",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "Card"
+      ],
+      "test": false,
+      "role": "interface",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "CardDaoServiceImpl",
+      "kind": "class",
+      "package": "persistence.card.dao",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/card/dao/CardDaoServiceImpl.java",
+      "line": 19,
+      "lines": 63,
+      "summary": "",
+      "annotations": [
+        "RequiredArgsConstructor",
+        "Service"
+      ],
+      "extends": null,
+      "implements": [
+        "CardDaoService"
+      ],
+      "uses": [
+        "Card",
+        "CardRepository",
+        "TopicCardCount"
+      ],
+      "test": false,
+      "role": "service",
+      "injects": [
+        [
+          "CardRepository",
+          "cardRepository"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "Card",
+      "kind": "class",
+      "package": "persistence.card.entity",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/card/entity/Card.java",
+      "line": 33,
+      "lines": 81,
+      "summary": "A question with a Markdown answer, its tags and up to five pictures, in one topic.",
+      "annotations": [
+        "Entity",
+        "Getter",
+        "NoArgsConstructor",
+        "Setter",
+        "Table"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "Image"
+      ],
+      "test": false,
+      "role": "entity",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "table": "cards",
+      "columns": [
+        {
+          "field": "id",
+          "type": "UUID",
+          "column": null
+        },
+        {
+          "field": "topicId",
+          "type": "UUID",
+          "column": "topic_id"
+        },
+        {
+          "field": "question",
+          "type": "String",
+          "column": "question"
+        },
+        {
+          "field": "answer",
+          "type": "String",
+          "column": "answer"
+        },
+        {
+          "field": "tags",
+          "type": "List<String>",
+          "column": "tag"
+        },
+        {
+          "field": "images",
+          "type": "List<Image>",
+          "column": null
+        },
+        {
+          "field": "createdAt",
+          "type": "Instant",
+          "column": "created_at"
+        },
+        {
+          "field": "updatedAt",
+          "type": "Instant",
+          "column": "updated_at"
+        }
+      ],
+      "relations": []
+    },
+    {
+      "name": "CardMapper",
+      "kind": "interface",
+      "package": "persistence.card.mapper",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/card/mapper/CardMapper.java",
+      "line": 12,
+      "lines": 18,
+      "summary": "Practice is not built yet: every card is new for everyone and never due.",
+      "annotations": [
+        "Mapper"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "Card",
+        "CardResponse",
+        "ImageMapper",
+        "MapStructConfig"
+      ],
+      "test": false,
+      "role": "interface",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "CardRepository",
+      "kind": "interface",
+      "package": "persistence.card.repository",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/card/repository/CardRepository.java",
+      "line": 12,
+      "lines": 34,
+      "summary": "",
+      "annotations": [],
+      "extends": "JpaRepository<Card, UUID>",
+      "implements": [],
+      "uses": [
+        "Card"
+      ],
+      "test": false,
+      "role": "repository",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "entity": "Card",
+      "queries": [
+        "count",
+        "countByTopic",
+        "findByTopicIdOrderByCreatedAtDescIdAsc",
+        "findTagsOfOwner",
+        "in"
+      ]
+    },
+    {
+      "name": "TopicCardCount",
+      "kind": "interface",
+      "package": "persistence.card.repository",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/card/repository/TopicCardCount.java",
+      "line": 6,
+      "lines": 12,
+      "summary": "How many cards sit directly in one topic.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "interface",
+      "injects": [],
       "endpoints": [],
       "jobs": [],
       "beans": [],
@@ -1438,6 +2449,322 @@
         "findFirstByUserIdAndPurposeAndUsedAtIsNullOrderByCreatedAtDesc",
         "findFirstByUserIdAndPurposeOrderByCreatedAtDesc"
       ]
+    },
+    {
+      "name": "ImageDaoService",
+      "kind": "interface",
+      "package": "persistence.image.dao",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/image/dao/ImageDaoService.java",
+      "line": 11,
+      "lines": 23,
+      "summary": "",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "Image"
+      ],
+      "test": false,
+      "role": "interface",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "ImageDaoServiceImpl",
+      "kind": "class",
+      "package": "persistence.image.dao",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/image/dao/ImageDaoServiceImpl.java",
+      "line": 17,
+      "lines": 51,
+      "summary": "",
+      "annotations": [
+        "RequiredArgsConstructor",
+        "Service"
+      ],
+      "extends": null,
+      "implements": [
+        "ImageDaoService"
+      ],
+      "uses": [
+        "Image",
+        "ImageRepository"
+      ],
+      "test": false,
+      "role": "service",
+      "injects": [
+        [
+          "ImageRepository",
+          "imageRepository"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "Image",
+      "kind": "class",
+      "package": "persistence.image.entity",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/image/entity/Image.java",
+      "line": 26,
+      "lines": 57,
+      "summary": "An uploaded picture; its bytes are a file named by the id in the images folder.",
+      "annotations": [
+        "Entity",
+        "Getter",
+        "NoArgsConstructor",
+        "Setter",
+        "Table"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "ImageType"
+      ],
+      "test": false,
+      "role": "entity",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "table": "images",
+      "columns": [
+        {
+          "field": "id",
+          "type": "UUID",
+          "column": null
+        },
+        {
+          "field": "ownerId",
+          "type": "UUID",
+          "column": "owner_id"
+        },
+        {
+          "field": "contentType",
+          "type": "ImageType",
+          "column": "content_type"
+        },
+        {
+          "field": "sizeBytes",
+          "type": "long",
+          "column": "size_bytes"
+        },
+        {
+          "field": "width",
+          "type": "int",
+          "column": "width"
+        },
+        {
+          "field": "height",
+          "type": "int",
+          "column": "height"
+        },
+        {
+          "field": "createdAt",
+          "type": "Instant",
+          "column": "created_at"
+        }
+      ],
+      "relations": []
+    },
+    {
+      "name": "ImageMapper",
+      "kind": "interface",
+      "package": "persistence.image.mapper",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/image/mapper/ImageMapper.java",
+      "line": 10,
+      "lines": 15,
+      "summary": "",
+      "annotations": [
+        "Mapper"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "Image",
+        "ImageResponse",
+        "MapStructConfig"
+      ],
+      "test": false,
+      "role": "interface",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "ImageUrls",
+      "kind": "class",
+      "package": "persistence.image.mapper",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/image/mapper/ImageUrls.java",
+      "line": 15,
+      "lines": 25,
+      "summary": "Where a picture can be fetched: an absolute URL on the host the request came to, so an can load it straight away.",
+      "annotations": [
+        "Component",
+        "code"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "ApiPaths"
+      ],
+      "test": false,
+      "role": "component",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "ImageRepository",
+      "kind": "interface",
+      "package": "persistence.image.repository",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/image/repository/ImageRepository.java",
+      "line": 12,
+      "lines": 22,
+      "summary": "",
+      "annotations": [],
+      "extends": "JpaRepository<Image, UUID>",
+      "implements": [],
+      "uses": [
+        "Image"
+      ],
+      "test": false,
+      "role": "repository",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "entity": "Image",
+      "queries": [
+        "exists",
+        "findOrphans"
+      ]
+    },
+    {
+      "name": "DiskImageFileStoreImpl",
+      "kind": "class",
+      "package": "persistence.image.storage",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/image/storage/DiskImageFileStoreImpl.java",
+      "line": 28,
+      "lines": 66,
+      "summary": "Files in prep-deck.images.directory, made on start if missing.",
+      "annotations": [
+        "Component",
+        "ConditionalOnProperty",
+        "RequiredArgsConstructor",
+        "code"
+      ],
+      "extends": null,
+      "implements": [
+        "ImageFileStore"
+      ],
+      "uses": [
+        "ImageProperties",
+        "ImageType"
+      ],
+      "test": false,
+      "role": "component",
+      "injects": [
+        [
+          "ImageProperties",
+          "properties"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "ImageFileStore",
+      "kind": "interface",
+      "package": "persistence.image.storage",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/image/storage/ImageFileStore.java",
+      "line": 14,
+      "lines": 24,
+      "summary": "The bytes of uploaded pictures, one object per image id; their rows live in the database.",
+      "annotations": [
+        "code"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "ImageType"
+      ],
+      "test": false,
+      "role": "interface",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "S3ImageFileStoreImpl",
+      "kind": "class",
+      "package": "persistence.image.storage",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/image/storage/S3ImageFileStoreImpl.java",
+      "line": 26,
+      "lines": 62,
+      "summary": "Objects in an S3 bucket (prep-deck.images.s3.*), keyed .",
+      "annotations": [
+        "Component",
+        "ConditionalOnProperty",
+        "RequiredArgsConstructor",
+        "code"
+      ],
+      "extends": null,
+      "implements": [
+        "ImageFileStore"
+      ],
+      "uses": [
+        "ImageS3Properties",
+        "ImageType"
+      ],
+      "test": false,
+      "role": "component",
+      "injects": [
+        [
+          "S3Client",
+          "s3"
+        ],
+        [
+          "ImageS3Properties",
+          "properties"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
     },
     {
       "name": "UserSettingsDaoService",
@@ -1778,6 +3105,192 @@
       "queries": [
         "findByHashForUpdate",
         "revokeFamily"
+      ]
+    },
+    {
+      "name": "TopicDaoService",
+      "kind": "interface",
+      "package": "persistence.topic.dao",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/topic/dao/TopicDaoService.java",
+      "line": 9,
+      "lines": 25,
+      "summary": "",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "Topic"
+      ],
+      "test": false,
+      "role": "interface",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "TopicDaoServiceImpl",
+      "kind": "class",
+      "package": "persistence.topic.dao",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/topic/dao/TopicDaoServiceImpl.java",
+      "line": 15,
+      "lines": 57,
+      "summary": "",
+      "annotations": [
+        "RequiredArgsConstructor",
+        "Service"
+      ],
+      "extends": null,
+      "implements": [
+        "TopicDaoService"
+      ],
+      "uses": [
+        "Topic",
+        "TopicRepository"
+      ],
+      "test": false,
+      "role": "service",
+      "injects": [
+        [
+          "TopicRepository",
+          "topicRepository"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "Topic",
+      "kind": "class",
+      "package": "persistence.topic.entity",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/topic/entity/Topic.java",
+      "line": 27,
+      "lines": 64,
+      "summary": "A folder of cards in its owner's tree.",
+      "annotations": [
+        "Entity",
+        "Getter",
+        "NoArgsConstructor",
+        "Setter",
+        "Table"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "entity",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "table": "topics",
+      "columns": [
+        {
+          "field": "id",
+          "type": "UUID",
+          "column": null
+        },
+        {
+          "field": "ownerId",
+          "type": "UUID",
+          "column": "owner_id"
+        },
+        {
+          "field": "parentId",
+          "type": "UUID",
+          "column": "parent_id"
+        },
+        {
+          "field": "title",
+          "type": "String",
+          "column": "title"
+        },
+        {
+          "field": "position",
+          "type": "int",
+          "column": "position"
+        },
+        {
+          "field": "createdAt",
+          "type": "Instant",
+          "column": "created_at"
+        },
+        {
+          "field": "updatedAt",
+          "type": "Instant",
+          "column": "updated_at"
+        }
+      ],
+      "relations": []
+    },
+    {
+      "name": "TopicMapper",
+      "kind": "interface",
+      "package": "persistence.topic.mapper",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/topic/mapper/TopicMapper.java",
+      "line": 15,
+      "lines": 29,
+      "summary": "Topics are only ever their owner's while sharing is not built: the role is owner, nothing is shared or unseen.",
+      "annotations": [
+        "Mapper"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "MapStructConfig",
+        "Topic",
+        "TopicResponse",
+        "UserResponse"
+      ],
+      "test": false,
+      "role": "interface",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "TopicRepository",
+      "kind": "interface",
+      "package": "persistence.topic.repository",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/topic/repository/TopicRepository.java",
+      "line": 10,
+      "lines": 20,
+      "summary": "",
+      "annotations": [],
+      "extends": "JpaRepository<Topic, UUID>",
+      "implements": [],
+      "uses": [
+        "Topic"
+      ],
+      "test": false,
+      "role": "repository",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "entity": "Topic",
+      "queries": [
+        "findByIdAndOwnerId",
+        "findByOwnerId",
+        "findByOwnerIdAndParentIdIsNullOrderByPositionAsc",
+        "findByOwnerIdAndParentIdOrderByPositionAsc"
       ]
     },
     {
@@ -2241,6 +3754,209 @@
       "handlers": []
     },
     {
+      "name": "CardWebService",
+      "kind": "interface",
+      "package": "service.card",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/card/CardWebService.java",
+      "line": 15,
+      "lines": 39,
+      "summary": "Cards in a user's topics.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "CardResponse",
+        "CreateCardRequest",
+        "DuplicateCardRequest",
+        "UpdateCardRequest"
+      ],
+      "test": false,
+      "role": "interface",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "CardWebServiceImpl",
+      "kind": "class",
+      "package": "service.card",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/card/CardWebServiceImpl.java",
+      "line": 37,
+      "lines": 175,
+      "summary": "Reads run in a transaction too: a card's tags and pictures load lazily while it is mapped.",
+      "annotations": [
+        "RequiredArgsConstructor",
+        "Service"
+      ],
+      "extends": null,
+      "implements": [
+        "CardWebService"
+      ],
+      "uses": [
+        "ApiException",
+        "Card",
+        "CardDaoService",
+        "CardMapper",
+        "CardProperties",
+        "CardResponse",
+        "CreateCardRequest",
+        "DuplicateCardRequest",
+        "Image",
+        "ImageDaoService",
+        "ImageProperties",
+        "TopicGuard",
+        "UpdateCardRequest"
+      ],
+      "test": false,
+      "role": "service",
+      "injects": [
+        [
+          "CardDaoService",
+          "cards"
+        ],
+        [
+          "ImageDaoService",
+          "images"
+        ],
+        [
+          "TopicGuard",
+          "guard"
+        ],
+        [
+          "CardMapper",
+          "cardMapper"
+        ],
+        [
+          "CardProperties",
+          "cardProperties"
+        ],
+        [
+          "ImageProperties",
+          "imageProperties"
+        ],
+        [
+          "Clock",
+          "clock"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "ImageContent",
+      "kind": "record",
+      "package": "service.image",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/image/ImageContent.java",
+      "line": 7,
+      "lines": 9,
+      "summary": "A picture's bytes ready to stream, with what the response headers need.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "ImageType"
+      ],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "ImageWebService",
+      "kind": "interface",
+      "package": "service.image",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/image/ImageWebService.java",
+      "line": 12,
+      "lines": 27,
+      "summary": "Card pictures.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "ImageResponse"
+      ],
+      "test": false,
+      "role": "interface",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "ImageWebServiceImpl",
+      "kind": "class",
+      "package": "service.image",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/image/ImageWebServiceImpl.java",
+      "line": 28,
+      "lines": 109,
+      "summary": "",
+      "annotations": [
+        "RequiredArgsConstructor",
+        "Service",
+        "Slf4j"
+      ],
+      "extends": null,
+      "implements": [
+        "ImageWebService"
+      ],
+      "uses": [
+        "ApiException",
+        "Image",
+        "ImageDaoService",
+        "ImageFileStore",
+        "ImageMapper",
+        "ImageProperties",
+        "ImageResponse",
+        "ImageType"
+      ],
+      "test": false,
+      "role": "service",
+      "injects": [
+        [
+          "ImageDaoService",
+          "images"
+        ],
+        [
+          "ImageFileStore",
+          "files"
+        ],
+        [
+          "ImageMapper",
+          "imageMapper"
+        ],
+        [
+          "ImageProperties",
+          "properties"
+        ],
+        [
+          "Clock",
+          "clock"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
       "name": "SettingsWebService",
       "kind": "interface",
       "package": "service.settings",
@@ -2310,6 +4026,132 @@
       "jobs": [],
       "beans": [],
       "handlers": []
+    },
+    {
+      "name": "TopicGuard",
+      "kind": "class",
+      "package": "service.topic",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/topic/TopicGuard.java",
+      "line": 19,
+      "lines": 28,
+      "summary": "The one place that decides whether a user may touch a topic and the cards in it.",
+      "annotations": [
+        "Component",
+        "RequiredArgsConstructor"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "ApiException",
+        "Topic",
+        "TopicDaoService"
+      ],
+      "test": false,
+      "role": "component",
+      "injects": [
+        [
+          "TopicDaoService",
+          "topics"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "TopicWebService",
+      "kind": "interface",
+      "package": "service.topic",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/topic/TopicWebService.java",
+      "line": 12,
+      "lines": 31,
+      "summary": "A user's topic tree: read flat, grown, renamed, rearranged and pruned.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "CreateTopicRequest",
+        "MoveTopicRequest",
+        "RenameTopicRequest",
+        "TopicResponse"
+      ],
+      "test": false,
+      "role": "interface",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "TopicWebServiceImpl",
+      "kind": "class",
+      "package": "service.topic",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/topic/TopicWebServiceImpl.java",
+      "line": 30,
+      "lines": 138,
+      "summary": "",
+      "annotations": [
+        "RequiredArgsConstructor",
+        "Service"
+      ],
+      "extends": null,
+      "implements": [
+        "TopicWebService"
+      ],
+      "uses": [
+        "ApiException",
+        "CardDaoService",
+        "CreateTopicRequest",
+        "MoveTopicRequest",
+        "RenameTopicRequest",
+        "Topic",
+        "TopicDaoService",
+        "TopicMapper",
+        "TopicResponse",
+        "UserDaoService",
+        "UserMapper",
+        "UserResponse"
+      ],
+      "test": false,
+      "role": "service",
+      "injects": [
+        [
+          "TopicDaoService",
+          "topics"
+        ],
+        [
+          "CardDaoService",
+          "cards"
+        ],
+        [
+          "UserDaoService",
+          "users"
+        ],
+        [
+          "TopicGuard",
+          "guard"
+        ],
+        [
+          "TopicMapper",
+          "topicMapper"
+        ],
+        [
+          "UserMapper",
+          "userMapper"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
     }
   ],
   "edges": [
@@ -2321,10 +4163,45 @@
       "project": ""
     },
     {
+      "from": "CardController",
+      "to": "CardWebService",
+      "kind": "injects",
+      "field": "cardWebService",
+      "project": ""
+    },
+    {
+      "from": "ImageController",
+      "to": "ImageWebService",
+      "kind": "injects",
+      "field": "imageWebService",
+      "project": ""
+    },
+    {
       "from": "SettingsController",
       "to": "SettingsWebService",
       "kind": "injects",
       "field": "settingsWebService",
+      "project": ""
+    },
+    {
+      "from": "TopicController",
+      "to": "TopicWebService",
+      "kind": "injects",
+      "field": "topicWebService",
+      "project": ""
+    },
+    {
+      "from": "TopicController",
+      "to": "CardWebService",
+      "kind": "injects",
+      "field": "cardWebService",
+      "project": ""
+    },
+    {
+      "from": "OrphanImageCleanupJob",
+      "to": "ImageWebService",
+      "kind": "injects",
+      "field": "imageWebService",
       "project": ""
     },
     {
@@ -2370,10 +4247,38 @@
       "project": ""
     },
     {
+      "from": "CardDaoServiceImpl",
+      "to": "CardRepository",
+      "kind": "injects",
+      "field": "cardRepository",
+      "project": ""
+    },
+    {
       "from": "OneTimeCodeDaoServiceImpl",
       "to": "OneTimeCodeRepository",
       "kind": "injects",
       "field": "oneTimeCodeRepository",
+      "project": ""
+    },
+    {
+      "from": "ImageDaoServiceImpl",
+      "to": "ImageRepository",
+      "kind": "injects",
+      "field": "imageRepository",
+      "project": ""
+    },
+    {
+      "from": "DiskImageFileStoreImpl",
+      "to": "ImageProperties",
+      "kind": "injects",
+      "field": "properties",
+      "project": ""
+    },
+    {
+      "from": "S3ImageFileStoreImpl",
+      "to": "ImageS3Properties",
+      "kind": "injects",
+      "field": "properties",
       "project": ""
     },
     {
@@ -2388,6 +4293,13 @@
       "to": "RefreshTokenRepository",
       "kind": "injects",
       "field": "refreshTokenRepository",
+      "project": ""
+    },
+    {
+      "from": "TopicDaoServiceImpl",
+      "to": "TopicRepository",
+      "kind": "injects",
+      "field": "topicRepository",
       "project": ""
     },
     {
@@ -2454,6 +4366,76 @@
       "project": ""
     },
     {
+      "from": "CardWebServiceImpl",
+      "to": "CardDaoService",
+      "kind": "injects",
+      "field": "cards",
+      "project": ""
+    },
+    {
+      "from": "CardWebServiceImpl",
+      "to": "ImageDaoService",
+      "kind": "injects",
+      "field": "images",
+      "project": ""
+    },
+    {
+      "from": "CardWebServiceImpl",
+      "to": "TopicGuard",
+      "kind": "injects",
+      "field": "guard",
+      "project": ""
+    },
+    {
+      "from": "CardWebServiceImpl",
+      "to": "CardMapper",
+      "kind": "injects",
+      "field": "cardMapper",
+      "project": ""
+    },
+    {
+      "from": "CardWebServiceImpl",
+      "to": "CardProperties",
+      "kind": "injects",
+      "field": "cardProperties",
+      "project": ""
+    },
+    {
+      "from": "CardWebServiceImpl",
+      "to": "ImageProperties",
+      "kind": "injects",
+      "field": "imageProperties",
+      "project": ""
+    },
+    {
+      "from": "ImageWebServiceImpl",
+      "to": "ImageDaoService",
+      "kind": "injects",
+      "field": "images",
+      "project": ""
+    },
+    {
+      "from": "ImageWebServiceImpl",
+      "to": "ImageFileStore",
+      "kind": "injects",
+      "field": "files",
+      "project": ""
+    },
+    {
+      "from": "ImageWebServiceImpl",
+      "to": "ImageMapper",
+      "kind": "injects",
+      "field": "imageMapper",
+      "project": ""
+    },
+    {
+      "from": "ImageWebServiceImpl",
+      "to": "ImageProperties",
+      "kind": "injects",
+      "field": "properties",
+      "project": ""
+    },
+    {
       "from": "SettingsWebServiceImpl",
       "to": "UserSettingsDaoService",
       "kind": "injects",
@@ -2465,6 +4447,55 @@
       "to": "UserSettingsMapper",
       "kind": "injects",
       "field": "settingsMapper",
+      "project": ""
+    },
+    {
+      "from": "TopicGuard",
+      "to": "TopicDaoService",
+      "kind": "injects",
+      "field": "topics",
+      "project": ""
+    },
+    {
+      "from": "TopicWebServiceImpl",
+      "to": "TopicDaoService",
+      "kind": "injects",
+      "field": "topics",
+      "project": ""
+    },
+    {
+      "from": "TopicWebServiceImpl",
+      "to": "CardDaoService",
+      "kind": "injects",
+      "field": "cards",
+      "project": ""
+    },
+    {
+      "from": "TopicWebServiceImpl",
+      "to": "UserDaoService",
+      "kind": "injects",
+      "field": "users",
+      "project": ""
+    },
+    {
+      "from": "TopicWebServiceImpl",
+      "to": "TopicGuard",
+      "kind": "injects",
+      "field": "guard",
+      "project": ""
+    },
+    {
+      "from": "TopicWebServiceImpl",
+      "to": "TopicMapper",
+      "kind": "injects",
+      "field": "topicMapper",
+      "project": ""
+    },
+    {
+      "from": "TopicWebServiceImpl",
+      "to": "UserMapper",
+      "kind": "injects",
+      "field": "userMapper",
       "project": ""
     }
   ],
@@ -2516,6 +4547,10 @@
         {
           "key": "spring.jpa.properties.hibernate.jdbc.time_zone",
           "value": "UTC"
+        },
+        {
+          "key": "spring.jpa.properties.hibernate.default_batch_fetch_size",
+          "value": "100"
         },
         {
           "key": "spring.flyway.locations",
@@ -2600,6 +4635,66 @@
         {
           "key": "prep-deck.verification.resend-cooldown",
           "value": "60s"
+        },
+        {
+          "key": "prep-deck.images.storage",
+          "value": "${IMAGES_STORAGE}"
+        },
+        {
+          "key": "prep-deck.images.directory",
+          "value": "${IMAGES_DIR}"
+        },
+        {
+          "key": "prep-deck.images.s3.endpoint",
+          "value": "${S3_ENDPOINT}"
+        },
+        {
+          "key": "prep-deck.images.s3.region",
+          "value": "${S3_REGION}"
+        },
+        {
+          "key": "prep-deck.images.s3.bucket",
+          "value": "${S3_BUCKET}"
+        },
+        {
+          "key": "prep-deck.images.s3.key-prefix",
+          "value": "images/"
+        },
+        {
+          "key": "prep-deck.images.s3.access-key-id",
+          "value": "${S3_ACCESS_KEY_ID}"
+        },
+        {
+          "key": "prep-deck.images.s3.secret-access-key",
+          "value": "${S3_SECRET_ACCESS_KEY}"
+        },
+        {
+          "key": "prep-deck.images.max-size",
+          "value": "10MB"
+        },
+        {
+          "key": "prep-deck.images.max-per-card",
+          "value": "5"
+        },
+        {
+          "key": "prep-deck.images.orphan-ttl",
+          "value": "24h"
+        },
+        {
+          "key": "prep-deck.images.cleanup-interval",
+          "value": "1h"
+        },
+        {
+          "key": "spring.servlet.multipart.max-file-size",
+          "value": "10MB"
+        },
+        {
+          "key": "spring.servlet.multipart.max-request-size",
+          "value": "11MB"
+        },
+        {
+          "key": "prep-deck.cards.max-tags",
+          "value": "10"
         },
         {
           "key": "prep-deck.cors.mapping",
