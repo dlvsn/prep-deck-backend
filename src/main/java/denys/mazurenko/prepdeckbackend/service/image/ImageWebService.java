@@ -12,11 +12,12 @@ import java.util.UUID;
 public interface ImageWebService {
 
     /**
-     * Keeps the file and answers its id and URL. The width and height come from the client, which
-     * has decoded (and maybe scaled down) the picture already. Refuses "images.tooLarge" (413) and
-     * "images.notAnImage" (415) for anything but PNG, JPEG, WebP or GIF.
+     * Keeps the file and answers its id, URL and size. Everything is measured on the file itself:
+     * its weight on the bytes received, its format on its first bytes, its width and height on its
+     * headers. Refuses "images.tooLarge" (413), "images.notAnImage" (415: not PNG, JPEG, WebP or GIF,
+     * or no readable size) and "images.tooSmall" (400, with the minimum in data).
      */
-    ImageResponse upload(UUID userId, MultipartFile file, int width, int height);
+    ImageResponse upload(UUID userId, MultipartFile file);
 
     /** The bytes of a picture; "errors.notFound" when there is no such image. */
     ImageContent content(UUID imageId);

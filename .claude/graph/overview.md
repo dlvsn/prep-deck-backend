@@ -114,10 +114,14 @@ practice exists; editing never touches progress.
 
 ## Card pictures
 
-Pictures go up **before** the card is saved: `POST /images` (multipart `file`, `width`, `height`;
-the client has already scaled it to ≤ 2560 px) answers `{ id, url, width, height }`, and the card
-then sends `imageIds` in order. The format is recognised by the first bytes (`ImageType.sniff`:
-PNG, JPEG, WebP, GIF), not the name; over 10 MB is 413 `images.tooLarge`. Only the uploader can
+Pictures go up **before** the card is saved: `POST /images` (multipart `file`; the client has
+already scaled it to ≤ 2560 px) answers `{ id, url, width, height }`, and the card then sends
+`imageIds` in order. **Nothing the client says about the file is trusted**; all is measured on it:
+the weight on the bytes received (over 10 MB is 413 `images.tooLarge`), the format on its first
+bytes (`ImageType.sniff`: PNG, JPEG, WebP, GIF; else 415 `images.notAnImage`), the width and
+height on its headers (`ImageSizeReader`, metadata-extractor, EXIF rotation applied, pixels never
+decoded). Below `prep-deck.images.min-width` × `min-height` (64 × 64) is 400 `images.tooSmall`
+with the minimum in `data`. A large resolution is fine: only the weight is capped. Only the uploader can
 put an image on a card, or a card that already shows it.
 
 The bytes go through `ImageFileStore`, chosen by `IMAGES_STORAGE` (`prep-deck.images.storage`):
@@ -126,11 +130,19 @@ object per id, keyed `images/<id>`, into an S3-compatible bucket (`S3ImageFileSt
 v2, client in `ImageStorageConfig`). The project uses Cloudflare R2: endpoint
 `https://<account id>.r2.cloudflarestorage.com`, region `auto`, path-style addressing, checksums
 only where required. The bucket stays private: pictures are still served through
-`GET /images/{id}/content`, so the client never learns where they are kept. The row and the
-object are written in one transaction; the upload to the bucket runs inside it. `url` is absolute
+`GET /images/{id}/content`, so the client never learns where they are kept. `read` opens
+nothing: `S3ObjectResource` requests the object only when Spring writes the response and is
+closed by it, so a response that is never written (406, an exception) holds no pooled
+connection; `S3ObjectInputStream` aborts instead of draining when the client leaves mid-picture. No transaction is open
+while bytes travel: an upload puts the object first under an id the service picks
+(`Image` implements `Persistable`, so the save is a plain insert), then inserts the row in a short
+transaction; if anything fails, the object is deleted again. `url` is absolute
 (`ImageUrls`, from the request's host) and **open without a token**, since an `<img>` sends none:
 the id is a random UUID. An upload no card refers to is removed after `orphan-ttl` (24 h) by
-`OrphanImageCleanupJob`, every `cleanup-interval`.
+`OrphanImageCleanupJob`, every `cleanup-interval`: one row at a time, `SELECT … FOR UPDATE` and
+then a fresh check that no card uses it (JPA's PESSIMISTIC_WRITE is FOR NO KEY UPDATE on
+PostgreSQL and would not stop a foreign-key check), then the object outside the transaction.
+Without the lock, a card saved with an old upload during the sweep would lose it by cascade.
 
 ## Things to know before changing code
 

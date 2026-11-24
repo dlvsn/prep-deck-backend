@@ -16,7 +16,12 @@ public interface ImageFileStore {
     /** {@code size} is the exact number of bytes {@code content} holds. */
     void write(UUID id, InputStream content, long size, ImageType type);
 
-    Optional<Resource> read(UUID id);
+    /**
+     * The picture as a response body, {@code size} bytes long (known from its row). Empty when the
+     * store can tell cheaply that it is gone. Nothing may be opened here: the bytes are opened when
+     * the response is written, by whoever writes it, and closed by it too.
+     */
+    Optional<Resource> read(UUID id, long size);
 
     /** Nothing happens when the file is already gone. */
     void delete(UUID id);

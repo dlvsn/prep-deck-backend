@@ -22,6 +22,7 @@
           "org.postgresql:postgresql",
           "software.amazon.awssdk:s3",
           "software.amazon.awssdk:netty-nio-client",
+          "com.drewnoakes:metadata-extractor",
           "org.projectlombok:lombok",
           "org.mapstruct:mapstruct",
           "org.springframework.boot:spring-boot-starter-security-test",
@@ -288,7 +289,7 @@
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/api/image/ImageController.java",
       "line": 31,
-      "lines": 63,
+      "lines": 61,
       "summary": "",
       "annotations": [
         "RequestMapping",
@@ -317,7 +318,7 @@
           "http": "POST",
           "path": "/api/images",
           "method": "upload",
-          "summary": "Uploads a picture before the card is saved (multipart: file, width, height); the card then lists its id.",
+          "summary": "Uploads a picture before the card is saved (multipart: file); the card then lists its id.",
           "calls": [
             "ImageWebService"
           ],
@@ -331,7 +332,7 @@
           "calls": [
             "ImageWebService"
           ],
-          "line": 53
+          "line": 51
         }
       ],
       "jobs": [],
@@ -702,7 +703,7 @@
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/config/ImageProperties.java",
       "line": 16,
-      "lines": 36,
+      "lines": 42,
       "summary": "Card pictures: where the files are kept, what is accepted, when unused uploads go.",
       "annotations": [
         "ConfigurationProperties",
@@ -726,6 +727,8 @@
         "prep-deck.images.storage",
         "prep-deck.images.directory",
         "prep-deck.images.max-size",
+        "prep-deck.images.min-width",
+        "prep-deck.images.min-height",
         "prep-deck.images.max-per-card",
         "prep-deck.images.orphan-ttl",
         "prep-deck.images.cleanup-interval"
@@ -1557,6 +1560,28 @@
       "annotations": [
         "code"
       ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "MinImageSizeResponse",
+      "kind": "record",
+      "package": "dto.image.response",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/image/response/MinImageSizeResponse.java",
+      "line": 4,
+      "lines": 6,
+      "summary": "The data of an \"images.tooSmall\" refusal: the smallest size accepted, in pixels.",
+      "annotations": [],
       "extends": null,
       "implements": [],
       "uses": [],
@@ -2458,7 +2483,7 @@
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/image/dao/ImageDaoService.java",
       "line": 11,
-      "lines": 23,
+      "lines": 29,
       "summary": "",
       "annotations": [],
       "extends": null,
@@ -2482,7 +2507,7 @@
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/image/dao/ImageDaoServiceImpl.java",
       "line": 17,
-      "lines": 51,
+      "lines": 61,
       "summary": "",
       "annotations": [
         "RequiredArgsConstructor",
@@ -2516,18 +2541,21 @@
       "project": "",
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/image/entity/Image.java",
-      "line": 26,
-      "lines": 57,
-      "summary": "An uploaded picture; its bytes are a file named by the id in the images folder.",
+      "line": 35,
+      "lines": 81,
+      "summary": "An uploaded picture; its bytes are an object named by the id in the image store.",
       "annotations": [
         "Entity",
         "Getter",
         "NoArgsConstructor",
         "Setter",
-        "Table"
+        "Table",
+        "link"
       ],
       "extends": null,
-      "implements": [],
+      "implements": [
+        "Persistable<UUID>"
+      ],
       "uses": [
         "ImageType"
       ],
@@ -2573,6 +2601,11 @@
         {
           "field": "createdAt",
           "type": "Instant",
+          "column": "created_at"
+        },
+        {
+          "field": "fresh",
+          "type": "boolean",
           "column": "created_at"
         }
       ],
@@ -2640,8 +2673,8 @@
       "project": "",
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/image/repository/ImageRepository.java",
-      "line": 12,
-      "lines": 22,
+      "line": 14,
+      "lines": 40,
       "summary": "",
       "annotations": [],
       "extends": "JpaRepository<Image, UUID>",
@@ -2658,8 +2691,11 @@
       "handlers": [],
       "entity": "Image",
       "queries": [
+        "countCardsWith",
+        "deleteRow",
         "exists",
-        "findOrphans"
+        "findOrphanIds",
+        "lockById"
       ]
     },
     {
@@ -2707,7 +2743,7 @@
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/image/storage/ImageFileStore.java",
       "line": 14,
-      "lines": 24,
+      "lines": 29,
       "summary": "The bytes of uploaded pictures, one object per image id; their rows live in the database.",
       "annotations": [
         "code"
@@ -2732,8 +2768,8 @@
       "project": "",
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/image/storage/S3ImageFileStoreImpl.java",
-      "line": 26,
-      "lines": 62,
+      "line": 24,
+      "lines": 58,
       "summary": "Objects in an S3 bucket (prep-deck.images.s3.*), keyed .",
       "annotations": [
         "Component",
@@ -2759,6 +2795,77 @@
         [
           "ImageS3Properties",
           "properties"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "S3ObjectInputStream",
+      "kind": "class",
+      "package": "persistence.image.storage",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/image/storage/S3ObjectInputStream.java",
+      "line": 14,
+      "lines": 50,
+      "summary": "The body of a GetObject response that gives its connection back properly however it ends.",
+      "annotations": [],
+      "extends": "FilterInputStream",
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "filter",
+      "injects": [
+        [
+          "ResponseInputStream<?>",
+          "response"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "S3ObjectResource",
+      "kind": "class",
+      "package": "persistence.image.storage",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/image/storage/S3ObjectResource.java",
+      "line": 22,
+      "lines": 66,
+      "summary": "An S3 object served as a response body.",
+      "annotations": [
+        "code",
+        "link"
+      ],
+      "extends": "AbstractResource",
+      "implements": [],
+      "uses": [
+        "ApiException"
+      ],
+      "test": false,
+      "role": "class",
+      "injects": [
+        [
+          "S3Client",
+          "s3"
+        ],
+        [
+          "String",
+          "bucket"
+        ],
+        [
+          "String",
+          "key"
+        ],
+        [
+          "long",
+          "size"
         ]
       ],
       "endpoints": [],
@@ -3875,6 +3982,54 @@
       "handlers": []
     },
     {
+      "name": "ImageSize",
+      "kind": "record",
+      "package": "service.image",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/image/ImageSize.java",
+      "line": 4,
+      "lines": 6,
+      "summary": "A picture's size in pixels as it is displayed, EXIF rotation applied.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "ImageSizeReader",
+      "kind": "class",
+      "package": "service.image",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/image/ImageSizeReader.java",
+      "line": 24,
+      "lines": 67,
+      "summary": "Reads a picture's width and height from its own headers (metadata-extractor), never decoding the pixels, so the size the client claims is never needed or trusted.",
+      "annotations": [
+        "Component"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "ImageType"
+      ],
+      "test": false,
+      "role": "component",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
       "name": "ImageWebService",
       "kind": "interface",
       "package": "service.image",
@@ -3882,7 +4037,7 @@
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/image/ImageWebService.java",
       "line": 12,
-      "lines": 27,
+      "lines": 28,
       "summary": "Card pictures.",
       "annotations": [],
       "extends": null,
@@ -3906,7 +4061,7 @@
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/image/ImageWebServiceImpl.java",
       "line": 28,
-      "lines": 109,
+      "lines": 147,
       "summary": "",
       "annotations": [
         "RequiredArgsConstructor",
@@ -3925,7 +4080,8 @@
         "ImageMapper",
         "ImageProperties",
         "ImageResponse",
-        "ImageType"
+        "ImageType",
+        "MinImageSizeResponse"
       ],
       "test": false,
       "role": "service",
@@ -3937,6 +4093,10 @@
         [
           "ImageFileStore",
           "files"
+        ],
+        [
+          "ImageSizeReader",
+          "sizeReader"
         ],
         [
           "ImageMapper",
@@ -4423,6 +4583,13 @@
     },
     {
       "from": "ImageWebServiceImpl",
+      "to": "ImageSizeReader",
+      "kind": "injects",
+      "field": "sizeReader",
+      "project": ""
+    },
+    {
+      "from": "ImageWebServiceImpl",
       "to": "ImageMapper",
       "kind": "injects",
       "field": "imageMapper",
@@ -4671,6 +4838,14 @@
         {
           "key": "prep-deck.images.max-size",
           "value": "10MB"
+        },
+        {
+          "key": "prep-deck.images.min-width",
+          "value": "64"
+        },
+        {
+          "key": "prep-deck.images.min-height",
+          "value": "64"
         },
         {
           "key": "prep-deck.images.max-per-card",

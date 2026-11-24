@@ -44,7 +44,7 @@ public class DiskImageFileStoreImpl implements ImageFileStore {
     }
 
     @Override
-    public Optional<Resource> read(UUID id) {
+    public Optional<Resource> read(UUID id, long size) {
         Path path = pathOf(id);
         return Files.isRegularFile(path) ? Optional.of(new FileSystemResource(path)) : Optional.empty();
     }

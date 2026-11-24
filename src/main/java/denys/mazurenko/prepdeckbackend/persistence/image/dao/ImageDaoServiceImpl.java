@@ -32,19 +32,29 @@ public class ImageDaoServiceImpl implements ImageDaoService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<Image> findOrphans(Instant before) {
-        return imageRepository.findOrphans(before);
+    public List<UUID> findOrphanIds(Instant before) {
+        return imageRepository.findOrphanIds(before);
     }
 
     @Override
     @Transactional
-    public Image save(Image image) {
+    public Image insert(Image image) {
+        if (!image.isNew()) {
+            throw new IllegalArgumentException("Image " + image.getId() + " is already stored");
+        }
         return imageRepository.save(image);
     }
 
+    /**
+     * Lock first, then look: under READ COMMITTED each statement sees what was committed before it
+     * started, so the check after the lock sees a card that committed while we waited for it.
+     */
     @Override
     @Transactional
-    public void deleteAll(Collection<Image> images) {
-        imageRepository.deleteAll(images);
+    public boolean deleteIfOrphan(UUID id) {
+        if (imageRepository.lockById(id).isEmpty() || imageRepository.countCardsWith(id) > 0) {
+            return false;
+        }
+        return imageRepository.deleteRow(id) == 1;
     }
 }

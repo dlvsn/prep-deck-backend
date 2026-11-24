@@ -21,8 +21,14 @@ public class ImageProperties {
     /** LOCAL: the folder uploaded files are written to, one file per image named by its id. */
     private Path directory;
 
-    /** The largest file accepted. */
+    /** The largest file accepted, measured on the bytes received. */
     private DataSize maxSize;
+
+    /** The narrowest picture accepted, in pixels as displayed. */
+    private int minWidth;
+
+    /** The lowest picture accepted, in pixels as displayed. */
+    private int minHeight;
 
     /** Pictures one card may hold. */
     private int maxPerCard;

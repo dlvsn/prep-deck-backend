@@ -4,12 +4,10 @@ import denys.mazurenko.prepdeckbackend.config.ImageS3Properties;
 import denys.mazurenko.prepdeckbackend.domain.ImageType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
 import java.io.InputStream;
 import java.util.Optional;
@@ -38,15 +36,13 @@ public class S3ImageFileStoreImpl implements ImageFileStore {
                 RequestBody.fromInputStream(content, size));
     }
 
-    /** The stream is the open HTTP response; Spring closes it once the bytes are sent. */
+    /**
+     * Requests nothing yet: {@link S3ObjectResource} opens the object only when the response is
+     * written. A missing key surfaces then, as a 404.
+     */
     @Override
-    public Optional<Resource> read(UUID id) {
-        try {
-            InputStream object = s3.getObject(request -> request.bucket(properties.getBucket()).key(keyOf(id)));
-            return Optional.of(new InputStreamResource(object));
-        } catch (NoSuchKeyException e) {
-            return Optional.empty();
-        }
+    public Optional<Resource> read(UUID id, long size) {
+        return Optional.of(new S3ObjectResource(s3, properties.getBucket(), keyOf(id), size));
     }
 
     /** S3 answers a delete of a missing key with success too. */

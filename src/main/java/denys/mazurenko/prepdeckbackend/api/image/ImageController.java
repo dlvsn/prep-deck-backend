@@ -36,15 +36,13 @@ public class ImageController {
     private final ImageWebService imageWebService;
 
     /**
-     * Uploads a picture before the card is saved (multipart: file, width, height); the card then lists its id.
+     * Uploads a picture before the card is saved (multipart: file); the card then lists its id.
      */
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<ImageResponse> upload(@AuthenticationPrincipal Jwt jwt,
-                                             @RequestParam("file") MultipartFile file,
-                                             @RequestParam("width") int width,
-                                             @RequestParam("height") int height) {
-        return ApiResponse.ok(imageWebService.upload(UUID.fromString(jwt.getSubject()), file, width, height));
+                                             @RequestParam("file") MultipartFile file) {
+        return ApiResponse.ok(imageWebService.upload(UUID.fromString(jwt.getSubject()), file));
     }
 
     /**

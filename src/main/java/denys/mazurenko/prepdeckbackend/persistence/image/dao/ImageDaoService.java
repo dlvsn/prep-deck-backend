@@ -14,9 +14,15 @@ public interface ImageDaoService {
 
     List<Image> findAllById(Collection<UUID> ids);
 
-    List<Image> findOrphans(Instant before);
+    /** Ids of uploads older than the cut-off that no card refers to right now. */
+    List<UUID> findOrphanIds(Instant before);
 
-    Image save(Image image);
+    /** Inserts a new image whose id was chosen by the caller. */
+    Image insert(Image image);
 
-    void deleteAll(Collection<Image> images);
+    /**
+     * Deletes the row if no card refers to it at this moment, checked under a row lock so a card
+     * saved concurrently with this image keeps it. Answers whether the row was deleted.
+     */
+    boolean deleteIfOrphan(UUID id);
 }

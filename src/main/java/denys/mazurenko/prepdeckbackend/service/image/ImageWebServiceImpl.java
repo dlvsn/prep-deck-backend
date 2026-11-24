@@ -3,6 +3,7 @@ package denys.mazurenko.prepdeckbackend.service.image;
 import denys.mazurenko.prepdeckbackend.config.ImageProperties;
 import denys.mazurenko.prepdeckbackend.domain.ImageType;
 import denys.mazurenko.prepdeckbackend.dto.image.response.ImageResponse;
+import denys.mazurenko.prepdeckbackend.dto.image.response.MinImageSizeResponse;
 import denys.mazurenko.prepdeckbackend.exception.ApiException;
 import denys.mazurenko.prepdeckbackend.persistence.image.dao.ImageDaoService;
 import denys.mazurenko.prepdeckbackend.persistence.image.entity.Image;
@@ -12,7 +13,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -20,6 +20,7 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.time.Clock;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -29,69 +30,95 @@ public class ImageWebServiceImpl implements ImageWebService {
 
     /** Enough of the file to tell the formats apart (WebP needs bytes 8 to 11). */
     private static final int SNIFF_BYTES = 12;
-    private static final int MAX_DIMENSION = 20_000;
 
     private final ImageDaoService images;
     private final ImageFileStore files;
+    private final ImageSizeReader sizeReader;
     private final ImageMapper imageMapper;
     private final ImageProperties properties;
     private final Clock clock;
 
-    /** The row and the file go together: a file that cannot be written rolls the row back. */
+    /**
+     * The object goes up first, outside any transaction, so a slow upload to the bucket never
+     * holds a database connection; the row is a short insert afterwards. Whatever fails on the
+     * way, the object is taken back out, so nothing is left in the store without a row.
+     */
     @Override
-    @Transactional
-    public ImageResponse upload(UUID userId, MultipartFile file, int width, int height) {
+    public ImageResponse upload(UUID userId, MultipartFile file) {
+        // The bytes actually received, counted by the servlet container (which also stops reading
+        // past spring.servlet.multipart.max-file-size); nothing the client declared.
         if (file.getSize() > properties.getMaxSize().toBytes()) {
             throw new ApiException(HttpStatus.PAYLOAD_TOO_LARGE, "images.tooLarge");
         }
-        if (width <= 0 || height <= 0 || width > MAX_DIMENSION || height > MAX_DIMENSION) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "errors.badRequest");
-        }
         ImageType type = ImageType.sniff(head(file))
-                .orElseThrow(() -> new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "images.notAnImage"));
+                .orElseThrow(ImageWebServiceImpl::notAnImage);
+        ImageSize size = sizeOf(file, type).orElseThrow(ImageWebServiceImpl::notAnImage);
+        if (size.width() < properties.getMinWidth() || size.height() < properties.getMinHeight()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "images.tooSmall",
+                    new MinImageSizeResponse(properties.getMinWidth(), properties.getMinHeight()));
+        }
+
+        UUID id = UUID.randomUUID();
+        try (InputStream in = file.getInputStream()) {
+            files.write(id, in, file.getSize(), type);
+        } catch (IOException e) {
+            removeQuietly(id);
+            throw new UncheckedIOException(e);
+        } catch (RuntimeException e) {
+            removeQuietly(id);
+            throw e;
+        }
 
         Image image = new Image();
+        image.setId(id);
         image.setOwnerId(userId);
         image.setContentType(type);
         image.setSizeBytes(file.getSize());
-        image.setWidth(width);
-        image.setHeight(height);
-        Image saved = images.save(image);
-
-        try (InputStream in = file.getInputStream()) {
-            files.write(saved.getId(), in, file.getSize(), type);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        image.setWidth(size.width());
+        image.setHeight(size.height());
+        Image saved;
+        try {
+            saved = images.insert(image);
+        } catch (RuntimeException e) {
+            removeQuietly(id);
+            throw e;
         }
         return imageMapper.toResponse(saved);
     }
 
     @Override
-    @Transactional(readOnly = true)
     public ImageContent content(UUID imageId) {
         Image image = images.findById(imageId).orElseThrow(ImageWebServiceImpl::notFound);
-        return files.read(imageId)
+        return files.read(imageId, image.getSizeBytes())
                 .map(resource -> new ImageContent(resource, image.getContentType(), image.getSizeBytes()))
                 .orElseThrow(ImageWebServiceImpl::notFound);
     }
 
-    /** Rows first; a file that will not go is only logged, it no longer belongs to anything. */
+    /**
+     * One orphan at a time, each row in its own short transaction and its object after it, outside
+     * any. A row is deleted only if it is still unused at that moment, so an upload a card took
+     * after the search is kept (deleting it would cascade it off that card).
+     */
     @Override
-    @Transactional
     public int deleteOrphans() {
-        List<Image> orphans = images.findOrphans(clock.instant().minus(properties.getOrphanTtl()));
-        if (orphans.isEmpty()) {
-            return 0;
-        }
-        images.deleteAll(orphans);
-        for (Image orphan : orphans) {
-            try {
-                files.delete(orphan.getId());
-            } catch (UncheckedIOException e) {
-                log.warn("Could not delete the file of unused image {}", orphan.getId(), e);
+        List<UUID> candidates = images.findOrphanIds(clock.instant().minus(properties.getOrphanTtl()));
+        int removed = 0;
+        for (UUID id : candidates) {
+            if (images.deleteIfOrphan(id)) {
+                removed++;
+                removeQuietly(id);
             }
         }
-        return orphans.size();
+        return removed;
+    }
+
+    /** Takes an object out of the store; a failure is logged with the id, so it can be swept by hand. */
+    private void removeQuietly(UUID id) {
+        try {
+            files.delete(id);
+        } catch (RuntimeException e) {
+            log.error("Could not delete stored image {}; it has no row and must be removed by hand", id, e);
+        }
     }
 
     private static byte[] head(MultipartFile file) {
@@ -100,6 +127,18 @@ public class ImageWebServiceImpl implements ImageWebService {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    private Optional<ImageSize> sizeOf(MultipartFile file, ImageType type) {
+        try (InputStream in = file.getInputStream()) {
+            return sizeReader.read(in, file.getSize(), type);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static ApiException notAnImage() {
+        return new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "images.notAnImage");
     }
 
     private static ApiException notFound() {

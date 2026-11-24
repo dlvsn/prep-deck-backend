@@ -120,10 +120,14 @@ practice exists; editing never touches progress.
 
 ## Card pictures
 
-Pictures go up **before** the card is saved: `POST /images` (multipart `file`, `width`, `height`;
-the client has already scaled it to ≤ 2560 px) answers `{ id, url, width, height }`, and the card
-then sends `imageIds` in order. The format is recognised by the first bytes (`ImageType.sniff`:
-PNG, JPEG, WebP, GIF), not the name; over 10 MB is 413 `images.tooLarge`. Only the uploader can
+Pictures go up **before** the card is saved: `POST /images` (multipart `file`; the client has
+already scaled it to ≤ 2560 px) answers `{ id, url, width, height }`, and the card then sends
+`imageIds` in order. **Nothing the client says about the file is trusted**; all is measured on it:
+the weight on the bytes received (over 10 MB is 413 `images.tooLarge`), the format on its first
+bytes (`ImageType.sniff`: PNG, JPEG, WebP, GIF; else 415 `images.notAnImage`), the width and
+height on its headers (`ImageSizeReader`, metadata-extractor, EXIF rotation applied, pixels never
+decoded). Below `prep-deck.images.min-width` × `min-height` (64 × 64) is 400 `images.tooSmall`
+with the minimum in `data`. A large resolution is fine: only the weight is capped. Only the uploader can
 put an image on a card, or a card that already shows it.
 
 The bytes go through `ImageFileStore`, chosen by `IMAGES_STORAGE` (`prep-deck.images.storage`):
@@ -132,11 +136,19 @@ object per id, keyed `images/<id>`, into an S3-compatible bucket (`S3ImageFileSt
 v2, client in `ImageStorageConfig`). The project uses Cloudflare R2: endpoint
 `https://<account id>.r2.cloudflarestorage.com`, region `auto`, path-style addressing, checksums
 only where required. The bucket stays private: pictures are still served through
-`GET /images/{id}/content`, so the client never learns where they are kept. The row and the
-object are written in one transaction; the upload to the bucket runs inside it. `url` is absolute
+`GET /images/{id}/content`, so the client never learns where they are kept. `read` opens
+nothing: `S3ObjectResource` requests the object only when Spring writes the response and is
+closed by it, so a response that is never written (406, an exception) holds no pooled
+connection; `S3ObjectInputStream` aborts instead of draining when the client leaves mid-picture. No transaction is open
+while bytes travel: an upload puts the object first under an id the service picks
+(`Image` implements `Persistable`, so the save is a plain insert), then inserts the row in a short
+transaction; if anything fails, the object is deleted again. `url` is absolute
 (`ImageUrls`, from the request's host) and **open without a token**, since an `<img>` sends none:
 the id is a random UUID. An upload no card refers to is removed after `orphan-ttl` (24 h) by
-`OrphanImageCleanupJob`, every `cleanup-interval`.
+`OrphanImageCleanupJob`, every `cleanup-interval`: one row at a time, `SELECT … FOR UPDATE` and
+then a fresh check that no card uses it (JPA's PESSIMISTIC_WRITE is FOR NO KEY UPDATE on
+PostgreSQL and would not stop a foreign-key check), then the object outside the transaction.
+Without the lock, a card saved with an old upload during the sweep would lose it by cascade.
 
 ## Things to know before changing code
 
@@ -187,8 +199,8 @@ Everything this application does starts at one of these.
 | `PATCH` | `/api/cards/{id}` | CardController.update() | Changes the fields that are set; a topicId moves the card to that topic. | `api/card/CardController.java:53` |
 | `DELETE` | `/api/cards/{id}` | CardController.delete() | Deletes a card. | `api/card/CardController.java:62` |
 | `POST` | `/api/cards/{id}/duplicate` | CardController.duplicate() | Copies a card into the same topic with its tags and images and no practice progress. | `api/card/CardController.java:71` |
-| `POST` | `/api/images` | ImageController.upload() | Uploads a picture before the card is saved (multipart: file, width, height); the card then lists its id. | `api/image/ImageController.java:41` |
-| `GET` | `/api/images/{id}/content` | ImageController.content() | A picture's bytes; open without a token so an img tag can load it. | `api/image/ImageController.java:53` |
+| `POST` | `/api/images` | ImageController.upload() | Uploads a picture before the card is saved (multipart: file); the card then lists its id. | `api/image/ImageController.java:41` |
+| `GET` | `/api/images/{id}/content` | ImageController.content() | A picture's bytes; open without a token so an img tag can load it. | `api/image/ImageController.java:51` |
 | `GET` | `/api/settings` | SettingsController.get() | The signed-in user's saved picks; all fields null before the first save. | `api/settings/SettingsController.java:30` |
 | `PUT` | `/api/settings` | SettingsController.update() | Saves the whole set of picks. | `api/settings/SettingsController.java:38` |
 | `GET` | `/api/topics` | TopicController.listMine() | The signed-in user's topics, flat, with the number of cards directly in each. | `api/topic/TopicController.java:42` |
@@ -253,6 +265,7 @@ ImageController  [controller]
       ImageRepository  [repository]
     ImageFileStore  [interface]
     ImageMapper  [interface]
+    ImageSizeReader  [component]
 ```
 
 **OrphanImageCleanupJob.run() — scheduled**
@@ -263,6 +276,7 @@ ImageWebService → ImageWebServiceImpl  [service]
     ImageRepository  [repository]
   ImageFileStore  [interface]
   ImageMapper  [interface]
+  ImageSizeReader  [component]
 ```
 
 **SettingsController — HTTP**
@@ -422,6 +436,7 @@ TopicController  [controller]
 | Class | Role | Summary | Injects | Where |
 |---|---|---|---|---|
 | **ImageResponse** | record | An uploaded picture (client type `CardImage`); url is absolute and opens without a token. | - | `dto/image/response/ImageResponse.java:6` |
+| **MinImageSizeResponse** | record | The data of an "images.tooSmall" refusal: the smallest size accepted, in pixels. | - | `dto/image/response/MinImageSizeResponse.java:4` |
 
 ### `dto.settings.request`
 
@@ -529,7 +544,7 @@ TopicController  [controller]
 
 | Class | Role | Summary | Injects | Where |
 |---|---|---|---|---|
-| **Image** | entity | An uploaded picture; its bytes are a file named by the id in the images folder. | - | `persistence/image/entity/Image.java:26` |
+| **Image** | entity | An uploaded picture; its bytes are an object named by the id in the image store. | - | `persistence/image/entity/Image.java:35` |
 
 ### `persistence.image.mapper`
 
@@ -542,15 +557,17 @@ TopicController  [controller]
 
 | Class | Role | Summary | Injects | Where |
 |---|---|---|---|---|
-| **ImageRepository** | repository | - | - | `persistence/image/repository/ImageRepository.java:12` |
+| **ImageRepository** | repository | - | - | `persistence/image/repository/ImageRepository.java:14` |
 
 ### `persistence.image.storage`
 
 | Class | Role | Summary | Injects | Where |
 |---|---|---|---|---|
 | **DiskImageFileStoreImpl** | component | Files in prep-deck.images.directory, made on start if missing. | ImageProperties | `persistence/image/storage/DiskImageFileStoreImpl.java:28` |
-| **S3ImageFileStoreImpl** | component | Objects in an S3 bucket (prep-deck.images.s3.*), keyed . | ImageS3Properties, S3Client | `persistence/image/storage/S3ImageFileStoreImpl.java:26` |
+| **S3ImageFileStoreImpl** | component | Objects in an S3 bucket (prep-deck.images.s3.*), keyed . | ImageS3Properties, S3Client | `persistence/image/storage/S3ImageFileStoreImpl.java:24` |
 | **ImageFileStore** | interface | The bytes of uploaded pictures, one object per image id; their rows live in the database. | - | `persistence/image/storage/ImageFileStore.java:14` |
+| **S3ObjectResource** | class | An S3 object served as a response body. | S3Client, String, long | `persistence/image/storage/S3ObjectResource.java:22` |
+| **S3ObjectInputStream** | filter | The body of a GetObject response that gives its connection back properly however it ends. | ResponseInputStream | `persistence/image/storage/S3ObjectInputStream.java:14` |
 
 ### `persistence.settings.dao`
 
@@ -673,8 +690,10 @@ TopicController  [controller]
 
 | Class | Role | Summary | Injects | Where |
 |---|---|---|---|---|
-| **ImageWebServiceImpl** | service | - | Clock, ImageDaoService, ImageFileStore, ImageMapper, ImageProperties | `service/image/ImageWebServiceImpl.java:28` |
+| **ImageWebServiceImpl** | service | - | Clock, ImageDaoService, ImageFileStore, ImageMapper, ImageProperties, ImageSizeReader | `service/image/ImageWebServiceImpl.java:28` |
+| **ImageSizeReader** | component | Reads a picture's width and height from its own headers (metadata-extractor), never decoding the pixels, so the size the client claims is never needed or trusted. | - | `service/image/ImageSizeReader.java:24` |
 | **ImageContent** | record | A picture's bytes ready to stream, with what the response headers need. | - | `service/image/ImageContent.java:7` |
+| **ImageSize** | record | A picture's size in pixels as it is displayed, EXIF rotation applied. | - | `service/image/ImageSize.java:4` |
 | **ImageWebService** | interface | Card pictures. | - | `service/image/ImageWebService.java:12` |
 
 ### `service.settings`
@@ -697,7 +716,7 @@ TopicController  [controller]
 | Entity | Kind | Table | Fields | Repository | Where |
 |---|---|---|---|---|---|
 | **Card** | entity | `cards` | 8 | CardRepository | `persistence/card/entity/Card.java:33` |
-| **Image** | entity | `images` | 7 | ImageRepository | `persistence/image/entity/Image.java:26` |
+| **Image** | entity | `images` | 8 | ImageRepository | `persistence/image/entity/Image.java:35` |
 | **OneTimeCode** | entity | `one_time_codes` | 8 | OneTimeCodeRepository | `persistence/code/entity/OneTimeCode.java:29` |
 | **RefreshToken** | entity | `refresh_tokens` | 7 | RefreshTokenRepository | `persistence/token/entity/RefreshToken.java:30` |
 | **Topic** | entity | `topics` | 7 | TopicRepository | `persistence/topic/entity/Topic.java:27` |
@@ -709,7 +728,7 @@ TopicController  [controller]
 | Repository | Entity | Methods | Where |
 |---|---|---|---|
 | **CardRepository** | Card | `count()`, `countByTopic()`, `findByTopicIdOrderByCreatedAtDescIdAsc()`, `findTagsOfOwner()`, `in()` | `persistence/card/repository/CardRepository.java:12` |
-| **ImageRepository** | Image | `exists()`, `findOrphans()` | `persistence/image/repository/ImageRepository.java:12` |
+| **ImageRepository** | Image | `countCardsWith()`, `deleteRow()`, `exists()`, `findOrphanIds()`, `lockById()` | `persistence/image/repository/ImageRepository.java:14` |
 | **OneTimeCodeRepository** | OneTimeCode | `deleteActive()`, `findFirstByUserIdAndPurposeAndUsedAtIsNullOrderByCreatedAtDesc()`, `findFirstByUserIdAndPurposeOrderByCreatedAtDesc()` | `persistence/code/repository/OneTimeCodeRepository.java:15` |
 | **RefreshTokenRepository** | RefreshToken | `findByHashForUpdate()`, `revokeFamily()` | `persistence/token/repository/RefreshTokenRepository.java:15` |
 | **TopicRepository** | Topic | `findByIdAndOwnerId()`, `findByOwnerId()`, `findByOwnerIdAndParentIdIsNullOrderByPositionAsc()`, `findByOwnerIdAndParentIdOrderByPositionAsc()` | `persistence/topic/repository/TopicRepository.java:10` |
@@ -732,7 +751,7 @@ _none_
 | **CardProperties** | `prep-deck.cards` | 1 | CardWebServiceImpl | `config/CardProperties.java:11` |
 | **CorsProperties** | `prep-deck.cors` | 2 | - | `config/CorsProperties.java:13` |
 | **EmailTemplateProperties** | `prep-deck.mail.templates` | 5 | EmailTemplates, VerificationMailListener | `config/EmailTemplateProperties.java:15` |
-| **ImageProperties** | `prep-deck.images` | 6 | CardWebServiceImpl, DiskImageFileStoreImpl, ImageWebServiceImpl | `config/ImageProperties.java:16` |
+| **ImageProperties** | `prep-deck.images` | 8 | CardWebServiceImpl, DiskImageFileStoreImpl, ImageWebServiceImpl | `config/ImageProperties.java:16` |
 | **ImageS3Properties** | `prep-deck.images.s3` | 6 | S3ImageFileStoreImpl | `config/ImageS3Properties.java:15` |
 | **JwtProperties** | `prep-deck.jwt` | 4 | AuthWebServiceImpl, JwtService | `config/JwtProperties.java:13` |
 | **VerificationProperties** | `prep-deck.verification` | 3 | AuthWebServiceImpl | `config/VerificationProperties.java:13` |
@@ -743,7 +762,7 @@ _none_
 - **CardProperties** -- `prep-deck.cards.max-tags`
 - **CorsProperties** -- `prep-deck.cors.mapping`, `prep-deck.cors.allowed-origins`
 - **EmailTemplateProperties** -- `prep-deck.mail.templates.location`, `prep-deck.mail.templates.suffix`, `prep-deck.mail.templates.fallback-language`, `prep-deck.mail.templates.verify-email`, `prep-deck.mail.templates.reset-password`
-- **ImageProperties** -- `prep-deck.images.storage`, `prep-deck.images.directory`, `prep-deck.images.max-size`, `prep-deck.images.max-per-card`, `prep-deck.images.orphan-ttl`, `prep-deck.images.cleanup-interval`
+- **ImageProperties** -- `prep-deck.images.storage`, `prep-deck.images.directory`, `prep-deck.images.max-size`, `prep-deck.images.min-width`, `prep-deck.images.min-height`, `prep-deck.images.max-per-card`, `prep-deck.images.orphan-ttl`, `prep-deck.images.cleanup-interval`
 - **ImageS3Properties** -- `prep-deck.images.s3.endpoint`, `prep-deck.images.s3.region`, `prep-deck.images.s3.bucket`, `prep-deck.images.s3.key-prefix`, `prep-deck.images.s3.access-key-id`, `prep-deck.images.s3.secret-access-key`
 - **JwtProperties** -- `prep-deck.jwt.secret`, `prep-deck.jwt.issuer`, `prep-deck.jwt.access-ttl`, `prep-deck.jwt.refresh-ttl`
 - **VerificationProperties** -- `prep-deck.verification.code-ttl`, `prep-deck.verification.max-attempts`, `prep-deck.verification.resend-cooldown`
@@ -752,7 +771,7 @@ _none_
 
 | File | Keys |
 |---|---|
-| `src/main/resources/application.properties` | 50 |
+| `src/main/resources/application.properties` | 52 |
 
 ### Beans built by hand
 
@@ -788,11 +807,11 @@ _none_
 
 ## 8. Numbers
 
-- main classes: **115** (4288 lines)
+- main classes: **120** (4585 lines)
 - test classes: **0** (0 lines)
-- by role: advice 1, application 1, class 4, component 9, config 6, controller 5, entity 7, enum 8, exception 1, interface 19, properties 8, record 26, repository 7, service 13
-- injection edges: **49**
-- `.` — 115 main classes, package `denys.mazurenko.prepdeckbackend`, Spring Boot 4.2.0, Java 21, artifact `prep-deck-backend`
+- by role: advice 1, application 1, class 5, component 10, config 6, controller 5, entity 7, enum 8, exception 1, filter 1, interface 19, properties 8, record 28, repository 7, service 13
+- injection edges: **50**
+- `.` — 120 main classes, package `denys.mazurenko.prepdeckbackend`, Spring Boot 4.2.0, Java 21, artifact `prep-deck-backend`
 
 ---
 
