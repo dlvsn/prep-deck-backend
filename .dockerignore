@@ -1,0 +1,11 @@
+# Only pom.xml and src/ go into the image; nothing local, nothing secret.
+.git
+.idea
+.vscode
+.claude
+target
+data
+db
+docker
+.env
+*.iml

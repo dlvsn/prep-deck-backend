@@ -54,6 +54,10 @@ Everything below that is derived and overwritten on every run.
   `PREPDECK_DB_*` in the root `.env`.
 - Every other local service (Mailpit so far) comes up together from `docker/`:
   `docker compose up -d` there (`docker/docker-compose.yaml`).
+- The application itself runs in a container too: `Dockerfile` (Maven build, JRE image, unprivileged
+  user) and `docker-compose.yaml` at the root, which starts it with PostgreSQL and Mailpit
+  (`docker compose up -d --build`). Its environment has a default for every key, so `.env` is
+  optional there; a new setting needs a line in that file as well as in `.env.example`.
 - Letters: an event published in the transaction, sent by an `@TransactionalEventListener(AFTER_COMMIT)`
   + `@Async` listener through `EmailService`, from `resources/templates/<name>-<en|uk>.html`.
   Locally they land in Mailpit (http://localhost:8025, from `docker/docker-compose.yaml`).
