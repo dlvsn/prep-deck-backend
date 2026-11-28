@@ -2,6 +2,7 @@ package denys.mazurenko.prepdeckbackend.service.card;
 
 import denys.mazurenko.prepdeckbackend.config.CardProperties;
 import denys.mazurenko.prepdeckbackend.config.ImageProperties;
+import denys.mazurenko.prepdeckbackend.domain.TopicAction;
 import denys.mazurenko.prepdeckbackend.dto.card.request.CreateCardRequest;
 import denys.mazurenko.prepdeckbackend.dto.card.request.DuplicateCardRequest;
 import denys.mazurenko.prepdeckbackend.dto.card.request.UpdateCardRequest;
@@ -12,6 +13,7 @@ import denys.mazurenko.prepdeckbackend.persistence.card.entity.Card;
 import denys.mazurenko.prepdeckbackend.persistence.card.mapper.CardMapper;
 import denys.mazurenko.prepdeckbackend.persistence.image.dao.ImageDaoService;
 import denys.mazurenko.prepdeckbackend.persistence.image.entity.Image;
+import denys.mazurenko.prepdeckbackend.persistence.topic.entity.Topic;
 import denys.mazurenko.prepdeckbackend.service.topic.TopicGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -31,6 +33,7 @@ import java.util.stream.Collectors;
 
 /**
  * Reads run in a transaction too: a card's tags and pictures load lazily while it is mapped.
+ * Reading a card needs {@link TopicAction#VIEW} on its topic, changing one {@link TopicAction#EDIT}.
  */
 @Service
 @RequiredArgsConstructor
@@ -47,20 +50,20 @@ public class CardWebServiceImpl implements CardWebService {
     @Override
     @Transactional(readOnly = true)
     public List<CardResponse> list(UUID userId, UUID topicId) {
-        guard.require(userId, topicId);
+        guard.require(userId, topicId, TopicAction.VIEW);
         return cards.findByTopic(topicId).stream().map(cardMapper::toResponse).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public CardResponse get(UUID userId, UUID cardId) {
-        return cardMapper.toResponse(reachable(userId, cardId));
+        return cardMapper.toResponse(reachable(userId, cardId, TopicAction.VIEW));
     }
 
     @Override
     @Transactional
     public CardResponse create(UUID userId, UUID topicId, CreateCardRequest request) {
-        guard.require(userId, topicId);
+        guard.require(userId, topicId, TopicAction.EDIT);
         Card card = new Card();
         card.setTopicId(topicId);
         card.setQuestion(question(request.question()));
@@ -73,9 +76,14 @@ public class CardWebServiceImpl implements CardWebService {
     @Override
     @Transactional
     public CardResponse update(UUID userId, UUID cardId, UpdateCardRequest request) {
-        Card card = reachable(userId, cardId);
+        Card card = reachable(userId, cardId, TopicAction.EDIT);
         if (request.topicId() != null && !request.topicId().equals(card.getTopicId())) {
-            guard.require(userId, request.topicId());
+            Topic from = guard.require(userId, card.getTopicId(), TopicAction.EDIT).topic();
+            Topic to = guard.require(userId, request.topicId(), TopicAction.EDIT).topic();
+            // A card stays among its owner's topics, whoever moves it.
+            if (!to.getOwnerId().equals(from.getOwnerId())) {
+                throw TopicGuard.noAccess();
+            }
             card.setTopicId(request.topicId());
         }
         if (request.question() != null) {
@@ -98,13 +106,13 @@ public class CardWebServiceImpl implements CardWebService {
     @Override
     @Transactional
     public void delete(UUID userId, UUID cardId) {
-        cards.delete(reachable(userId, cardId));
+        cards.delete(reachable(userId, cardId, TopicAction.EDIT));
     }
 
     @Override
     @Transactional
     public CardResponse duplicate(UUID userId, UUID cardId, DuplicateCardRequest request) {
-        Card original = reachable(userId, cardId);
+        Card original = reachable(userId, cardId, TopicAction.EDIT);
         Card copy = new Card();
         copy.setTopicId(original.getTopicId());
         copy.setQuestion(request != null && request.question() != null
@@ -122,11 +130,10 @@ public class CardWebServiceImpl implements CardWebService {
         return cards.findTagsOfOwner(userId);
     }
 
-    /** A card the user may work with; anything else looks as if it did not exist. */
-    private Card reachable(UUID userId, UUID cardId) {
-        Card card = cards.findById(cardId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "errors.noAccess"));
-        guard.require(userId, card.getTopicId());
+    /** A card the user may do this with; one they cannot see looks as if it did not exist. */
+    private Card reachable(UUID userId, UUID cardId, TopicAction action) {
+        Card card = cards.findById(cardId).orElseThrow(TopicGuard::noAccess);
+        guard.require(userId, card.getTopicId(), action);
         return card;
     }
 

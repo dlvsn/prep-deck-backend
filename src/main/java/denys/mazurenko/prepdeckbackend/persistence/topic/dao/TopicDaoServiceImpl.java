@@ -24,8 +24,8 @@ public class TopicDaoServiceImpl implements TopicDaoService {
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<Topic> findOwned(UUID id, UUID ownerId) {
-        return topicRepository.findByIdAndOwnerId(id, ownerId);
+    public Optional<Topic> findById(UUID id) {
+        return topicRepository.findById(id);
     }
 
     @Override

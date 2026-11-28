@@ -10,7 +10,8 @@ import java.util.UUID;
 
 /**
  * Cards in a user's topics. Every call goes through the topic the card sits in: a topic the user
- * cannot reach answers "errors.noAccess" (404) for its cards as well.
+ * cannot reach answers "errors.noAccess" (404) for its cards as well, and a change to cards of a
+ * topic the user may only view answers "errors.readOnly" (403).
  */
 public interface CardWebService {
 

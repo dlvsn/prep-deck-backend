@@ -51,7 +51,7 @@
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/api/ApiPaths.java",
       "line": 8,
-      "lines": 21,
+      "lines": 25,
       "summary": "Every path prefix, named once for the controllers and the security rules alike.",
       "annotations": [
         "code",
@@ -398,6 +398,220 @@
       "handlers": []
     },
     {
+      "name": "SharedTopicController",
+      "kind": "class",
+      "package": "api.share",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/api/share/SharedTopicController.java",
+      "line": 30,
+      "lines": 84,
+      "summary": "",
+      "annotations": [
+        "RequestMapping",
+        "RequiredArgsConstructor",
+        "RestController"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "AcceptShareRequest",
+        "ApiPaths",
+        "ApiResponse",
+        "CopyTopicRequest",
+        "SharedTopicWebService",
+        "TopicCopyWebService",
+        "TopicResponse"
+      ],
+      "test": false,
+      "role": "controller",
+      "injects": [
+        [
+          "SharedTopicWebService",
+          "sharedTopicWebService"
+        ],
+        [
+          "TopicCopyWebService",
+          "topicCopyWebService"
+        ]
+      ],
+      "endpoints": [
+        {
+          "http": "GET",
+          "path": "/api/shares",
+          "method": "listShared",
+          "summary": "Topics other people shared with the signed-in user, flat, each with its owner.",
+          "calls": [
+            "SharedTopicWebService"
+          ],
+          "line": 38
+        },
+        {
+          "http": "POST",
+          "path": "/api/shares/accept",
+          "method": "accept",
+          "summary": "Opens a public link or an invitation link and answers the first topic it opened.",
+          "calls": [
+            "SharedTopicWebService"
+          ],
+          "line": 46
+        },
+        {
+          "http": "POST",
+          "path": "/api/shares/{topicId}/seen",
+          "method": "markSeen",
+          "summary": "Marks the share a topic came through as opened.",
+          "calls": [
+            "SharedTopicWebService"
+          ],
+          "line": 55
+        },
+        {
+          "http": "DELETE",
+          "path": "/api/shares/{topicId}",
+          "method": "leave",
+          "summary": "Leaves the share a topic came through, with every topic below it.",
+          "calls": [
+            "SharedTopicWebService"
+          ],
+          "line": 64
+        },
+        {
+          "http": "POST",
+          "path": "/api/shares/{topicId}/copy",
+          "method": "copyToMine",
+          "summary": "Copies a topic the user can see, with its subtopics, cards and pictures, into their own topics.",
+          "calls": [
+            "TopicCopyWebService"
+          ],
+          "line": 73
+        }
+      ],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "SharingController",
+      "kind": "class",
+      "package": "api.share",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/api/share/SharingController.java",
+      "line": 30,
+      "lines": 108,
+      "summary": "The sharing of the tree the topic {id} belongs to; every call answers it as it stands after.",
+      "annotations": [
+        "RequestMapping",
+        "RequiredArgsConstructor",
+        "RestController"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "ApiPaths",
+        "ApiResponse",
+        "InviteRequest",
+        "ShareTopicsRequest",
+        "SharingResponse",
+        "SharingWebService",
+        "UpdateLinkRequest"
+      ],
+      "test": false,
+      "role": "controller",
+      "injects": [
+        [
+          "SharingWebService",
+          "sharingWebService"
+        ]
+      ],
+      "endpoints": [
+        {
+          "http": "GET",
+          "path": "/api/topics/{id}/sharing",
+          "method": "get",
+          "summary": "Who can see the topic's tree: people, waiting invitations, the public link.",
+          "calls": [
+            "SharingWebService"
+          ],
+          "line": 37
+        },
+        {
+          "http": "POST",
+          "path": "/api/topics/{id}/sharing/invites",
+          "method": "invite",
+          "summary": "Invites someone by email or username to topics of the tree and emails them a link.",
+          "calls": [
+            "SharingWebService"
+          ],
+          "line": 45
+        },
+        {
+          "http": "DELETE",
+          "path": "/api/topics/{id}/sharing/invites/{inviteId}",
+          "method": "revokeInvite",
+          "summary": "Revokes an invitation not accepted yet; its link stops working.",
+          "calls": [
+            "SharingWebService"
+          ],
+          "line": 54
+        },
+        {
+          "http": "PUT",
+          "path": "/api/topics/{id}/sharing/people/{memberId}/topics",
+          "method": "changeTopics",
+          "summary": "Replaces the topics of the tree a person may see.",
+          "calls": [
+            "SharingWebService"
+          ],
+          "line": 63
+        },
+        {
+          "http": "DELETE",
+          "path": "/api/topics/{id}/sharing/people/{memberId}",
+          "method": "removeMember",
+          "summary": "Takes the whole tree from a person; the public link no longer lets them back in.",
+          "calls": [
+            "SharingWebService"
+          ],
+          "line": 73
+        },
+        {
+          "http": "PUT",
+          "path": "/api/topics/{id}/sharing/link",
+          "method": "updateLink",
+          "summary": "Turns the tree's public link on or off and sets the topics it opens.",
+          "calls": [
+            "SharingWebService"
+          ],
+          "line": 82
+        },
+        {
+          "http": "POST",
+          "path": "/api/topics/{id}/sharing/link/reset",
+          "method": "resetLink",
+          "summary": "Gives the public link a new token; the old link stops working, people keep their access.",
+          "calls": [
+            "SharingWebService"
+          ],
+          "line": 91
+        },
+        {
+          "http": "DELETE",
+          "path": "/api/topics/{id}/sharing/link/people",
+          "method": "removeLinkMembers",
+          "summary": "Takes the tree from everyone who came through the public link alone.",
+          "calls": [
+            "SharingWebService"
+          ],
+          "line": 99
+        }
+      ],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
       "name": "TopicController",
       "kind": "class",
       "package": "api.topic",
@@ -666,7 +880,7 @@
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/config/EmailTemplateProperties.java",
       "line": 15,
-      "lines": 31,
+      "lines": 34,
       "summary": "Where the letter templates are and what they are called.",
       "annotations": [
         "ConfigurationProperties",
@@ -692,7 +906,8 @@
         "prep-deck.mail.templates.suffix",
         "prep-deck.mail.templates.fallback-language",
         "prep-deck.mail.templates.verify-email",
-        "prep-deck.mail.templates.reset-password"
+        "prep-deck.mail.templates.reset-password",
+        "prep-deck.mail.templates.invite"
       ]
     },
     {
@@ -968,6 +1183,64 @@
       "handlers": []
     },
     {
+      "name": "SharingConfig",
+      "kind": "class",
+      "package": "config",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/config/SharingConfig.java",
+      "line": 9,
+      "lines": 11,
+      "summary": "Sharing topics: its settings.",
+      "annotations": [
+        "Configuration",
+        "EnableConfigurationProperties"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "config",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "SharingProperties",
+      "kind": "class",
+      "package": "config",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/config/SharingProperties.java",
+      "line": 13,
+      "lines": 30,
+      "summary": "Sharing topics with other people: what links look like, how invitations behave.",
+      "annotations": [
+        "ConfigurationProperties",
+        "Getter",
+        "Setter"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "properties",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "prefix": "prep-deck.sharing",
+      "keys": [
+        "prep-deck.sharing.link-base-url",
+        "prep-deck.sharing.invite-ttl",
+        "prep-deck.sharing.invite-cooldown",
+        "prep-deck.sharing.max-copy-cards"
+      ]
+    },
+    {
       "name": "VerificationProperties",
       "kind": "class",
       "package": "config",
@@ -1159,15 +1432,15 @@
       "handlers": []
     },
     {
-      "name": "TopicRole",
+      "name": "TopicAction",
       "kind": "enum",
       "package": "domain",
       "project": "",
       "module": "",
-      "file": "src/main/java/denys/mazurenko/prepdeckbackend/domain/TopicRole.java",
-      "line": 11,
-      "lines": 21,
-      "summary": "The caller's role on a topic.",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/domain/TopicAction.java",
+      "line": 4,
+      "lines": 12,
+      "summary": "What a caller wants to do with a topic and the cards in it; TopicRole#allows decides.",
       "annotations": [
         "link"
       ],
@@ -1177,6 +1450,35 @@
       "test": false,
       "role": "enum",
       "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "TopicRole",
+      "kind": "enum",
+      "package": "domain",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/domain/TopicRole.java",
+      "line": 17,
+      "lines": 42,
+      "summary": "The caller's role on a topic, and the one list of what each role may do.",
+      "annotations": [
+        "link"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "enum",
+      "injects": [
+        [
+          "Set<TopicAction>",
+          "actions"
+        ]
+      ],
       "endpoints": [],
       "jobs": [],
       "beans": [],
@@ -1327,28 +1629,6 @@
       "annotations": [
         "code"
       ],
-      "extends": null,
-      "implements": [],
-      "uses": [],
-      "test": false,
-      "role": "record",
-      "injects": [],
-      "endpoints": [],
-      "jobs": [],
-      "beans": [],
-      "handlers": []
-    },
-    {
-      "name": "RetryAfterResponse",
-      "kind": "record",
-      "package": "dto.auth.response",
-      "project": "",
-      "module": "",
-      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/auth/response/RetryAfterResponse.java",
-      "line": 4,
-      "lines": 6,
-      "summary": "The data of an \"auth.resendTooSoon\" refusal: seconds until another letter may be asked for.",
-      "annotations": [],
       "extends": null,
       "implements": [],
       "uses": [],
@@ -1548,6 +1828,28 @@
       "handlers": []
     },
     {
+      "name": "RetryAfterResponse",
+      "kind": "record",
+      "package": "dto.common.response",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/common/response/RetryAfterResponse.java",
+      "line": 7,
+      "lines": 9,
+      "summary": "The data of a \"too soon\" refusal (\"auth.resendTooSoon\", \"share.inviteTooSoon\"): seconds until the same letter may be asked for again.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
       "name": "ImageResponse",
       "kind": "record",
       "package": "dto.image.response",
@@ -1648,6 +1950,217 @@
       "handlers": []
     },
     {
+      "name": "AcceptShareRequest",
+      "kind": "record",
+      "package": "dto.share.request",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/share/request/AcceptShareRequest.java",
+      "line": 10,
+      "lines": 16,
+      "summary": "A public link or an invitation link, as pasted or opened: the token alone or the whole link (everything after its last \"/\" is taken).",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "CopyTopicRequest",
+      "kind": "record",
+      "package": "dto.share.request",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/share/request/CopyTopicRequest.java",
+      "line": 6,
+      "lines": 8,
+      "summary": "Where the copy goes among the caller's own topics; parentId null makes it a root.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "InviteRequest",
+      "kind": "record",
+      "package": "dto.share.request",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/share/request/InviteRequest.java",
+      "line": 15,
+      "lines": 25,
+      "summary": "Invites someone by email or username to the topics given, all of one tree.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "ShareTopicsRequest",
+      "kind": "record",
+      "package": "dto.share.request",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/share/request/ShareTopicsRequest.java",
+      "line": 11,
+      "lines": 17,
+      "summary": "The whole new set of topics a person may see in one tree; it replaces the old set.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "UpdateLinkRequest",
+      "kind": "record",
+      "package": "dto.share.request",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/share/request/UpdateLinkRequest.java",
+      "line": 14,
+      "lines": 22,
+      "summary": "Turns the tree's public link on or off.",
+      "annotations": [
+        "code"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "ShareInviteResponse",
+      "kind": "record",
+      "package": "dto.share.response",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/share/response/ShareInviteResponse.java",
+      "line": 8,
+      "lines": 11,
+      "summary": "An invitation letter not accepted yet.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "ShareLinkResponse",
+      "kind": "record",
+      "package": "dto.share.response",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/share/response/ShareLinkResponse.java",
+      "line": 10,
+      "lines": 12,
+      "summary": "The tree's public link.",
+      "annotations": [
+        "code"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "ShareMemberResponse",
+      "kind": "record",
+      "package": "dto.share.response",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/share/response/ShareMemberResponse.java",
+      "line": 14,
+      "lines": 17,
+      "summary": "A person with access to part of a tree: the topics granted to them (each with its subtree), in tree order.",
+      "annotations": [
+        "code"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "TopicRole",
+        "UserResponse"
+      ],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "SharingResponse",
+      "kind": "record",
+      "package": "dto.share.response",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/share/response/SharingResponse.java",
+      "line": 13,
+      "lines": 16,
+      "summary": "Who can see a tree and how (client type `TopicSharing`): the people with access, the invitations still waiting, and the public link.",
+      "annotations": [
+        "code"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "UserResponse"
+      ],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
       "name": "CreateTopicRequest",
       "kind": "record",
       "package": "dto.topic.request",
@@ -1722,8 +2235,8 @@
       "project": "",
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/dto/topic/response/TopicResponse.java",
-      "line": 14,
-      "lines": 17,
+      "line": 19,
+      "lines": 22,
       "summary": "One topic of the flat list the client builds its tree from (client type `Topic`).",
       "annotations": [
         "code"
@@ -1945,8 +2458,8 @@
       "project": "",
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/mail/EmailTemplates.java",
-      "line": 27,
-      "lines": 75,
+      "line": 30,
+      "lines": 112,
       "summary": "The letter templates (location and names in EmailTemplateProperties), filled in by name: every {{key}} becomes its value, HTML-escaped.",
       "annotations": [
         "Component",
@@ -1978,6 +2491,30 @@
       "handlers": []
     },
     {
+      "name": "InvitedTopic",
+      "kind": "record",
+      "package": "mail",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/mail/InvitedTopic.java",
+      "line": 9,
+      "lines": 11,
+      "summary": "One topic of an invitation letter: its title, the titles above it (path, empty for a root), the cards in its whole subtree, and whether it has subtopics that come along.",
+      "annotations": [
+        "code"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
       "name": "Letter",
       "kind": "record",
       "package": "mail",
@@ -1994,6 +2531,72 @@
       "test": false,
       "role": "record",
       "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "ShareInviteIssued",
+      "kind": "record",
+      "package": "mail",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/mail/ShareInviteIssued.java",
+      "line": 12,
+      "lines": 20,
+      "summary": "An invitation was saved and its letter should go out.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "Language"
+      ],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "ShareInviteMailListener",
+      "kind": "class",
+      "package": "mail",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/mail/ShareInviteMailListener.java",
+      "line": 23,
+      "lines": 67,
+      "summary": "Sends the invitation letter once the invitation is safely in the database, on a thread of its own.",
+      "annotations": [
+        "Component",
+        "RequiredArgsConstructor",
+        "Slf4j"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "AppMailProperties",
+        "EmailTemplateProperties"
+      ],
+      "test": false,
+      "role": "component",
+      "injects": [
+        [
+          "EmailService",
+          "emailService"
+        ],
+        [
+          "AppMailProperties",
+          "properties"
+        ],
+        [
+          "EmailTemplateProperties",
+          "templates"
+        ]
+      ],
       "endpoints": [],
       "jobs": [],
       "beans": [],
@@ -2706,7 +3309,7 @@
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/image/storage/DiskImageFileStoreImpl.java",
       "line": 28,
-      "lines": 66,
+      "lines": 75,
       "summary": "Files in prep-deck.images.directory, made on start if missing.",
       "annotations": [
         "Component",
@@ -2743,7 +3346,7 @@
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/image/storage/ImageFileStore.java",
       "line": 14,
-      "lines": 29,
+      "lines": 32,
       "summary": "The bytes of uploaded pictures, one object per image id; their rows live in the database.",
       "annotations": [
         "code"
@@ -2769,7 +3372,7 @@
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/image/storage/S3ImageFileStoreImpl.java",
       "line": 24,
-      "lines": 58,
+      "lines": 68,
       "summary": "Objects in an S3 bucket (prep-deck.images.s3.*), keyed .",
       "annotations": [
         "Component",
@@ -3051,6 +3654,732 @@
       "handlers": [],
       "entity": "UserSettings",
       "queries": []
+    },
+    {
+      "name": "ShareBlockDaoService",
+      "kind": "interface",
+      "package": "persistence.share.dao",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/share/dao/ShareBlockDaoService.java",
+      "line": 5,
+      "lines": 14,
+      "summary": "",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "interface",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "ShareBlockDaoServiceImpl",
+      "kind": "class",
+      "package": "persistence.share.dao",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/share/dao/ShareBlockDaoServiceImpl.java",
+      "line": 12,
+      "lines": 34,
+      "summary": "",
+      "annotations": [
+        "RequiredArgsConstructor",
+        "Service"
+      ],
+      "extends": null,
+      "implements": [
+        "ShareBlockDaoService"
+      ],
+      "uses": [
+        "ShareBlockRepository"
+      ],
+      "test": false,
+      "role": "service",
+      "injects": [
+        [
+          "ShareBlockRepository",
+          "blockRepository"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "ShareInviteDaoService",
+      "kind": "interface",
+      "package": "persistence.share.dao",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/share/dao/ShareInviteDaoService.java",
+      "line": 10,
+      "lines": 25,
+      "summary": "",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "ShareInvite"
+      ],
+      "test": false,
+      "role": "interface",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "ShareInviteDaoServiceImpl",
+      "kind": "class",
+      "package": "persistence.share.dao",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/share/dao/ShareInviteDaoServiceImpl.java",
+      "line": 17,
+      "lines": 52,
+      "summary": "",
+      "annotations": [
+        "RequiredArgsConstructor",
+        "Service"
+      ],
+      "extends": null,
+      "implements": [
+        "ShareInviteDaoService"
+      ],
+      "uses": [
+        "ShareInvite",
+        "ShareInviteRepository"
+      ],
+      "test": false,
+      "role": "service",
+      "injects": [
+        [
+          "ShareInviteRepository",
+          "inviteRepository"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "ShareLinkDaoService",
+      "kind": "interface",
+      "package": "persistence.share.dao",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/share/dao/ShareLinkDaoService.java",
+      "line": 9,
+      "lines": 20,
+      "summary": "",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "ShareLink"
+      ],
+      "test": false,
+      "role": "interface",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "ShareLinkDaoServiceImpl",
+      "kind": "class",
+      "package": "persistence.share.dao",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/share/dao/ShareLinkDaoServiceImpl.java",
+      "line": 15,
+      "lines": 43,
+      "summary": "",
+      "annotations": [
+        "RequiredArgsConstructor",
+        "Service"
+      ],
+      "extends": null,
+      "implements": [
+        "ShareLinkDaoService"
+      ],
+      "uses": [
+        "ShareLink",
+        "ShareLinkRepository"
+      ],
+      "test": false,
+      "role": "service",
+      "injects": [
+        [
+          "ShareLinkRepository",
+          "linkRepository"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "TopicGrantDaoService",
+      "kind": "interface",
+      "package": "persistence.share.dao",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/share/dao/TopicGrantDaoService.java",
+      "line": 13,
+      "lines": 29,
+      "summary": "",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "GrantSource",
+        "TopicGrant",
+        "TopicRole"
+      ],
+      "test": false,
+      "role": "interface",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "TopicGrantDaoServiceImpl",
+      "kind": "class",
+      "package": "persistence.share.dao",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/share/dao/TopicGrantDaoServiceImpl.java",
+      "line": 20,
+      "lines": 66,
+      "summary": "",
+      "annotations": [
+        "RequiredArgsConstructor",
+        "Service"
+      ],
+      "extends": null,
+      "implements": [
+        "TopicGrantDaoService"
+      ],
+      "uses": [
+        "GrantSource",
+        "TopicGrant",
+        "TopicGrantRepository",
+        "TopicRole"
+      ],
+      "test": false,
+      "role": "service",
+      "injects": [
+        [
+          "TopicGrantRepository",
+          "grantRepository"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "GrantSource",
+      "kind": "enum",
+      "package": "persistence.share.entity",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/share/entity/GrantSource.java",
+      "line": 4,
+      "lines": 10,
+      "summary": "How a grant came about.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "enum",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "ShareBlock",
+      "kind": "class",
+      "package": "persistence.share.entity",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/share/entity/ShareBlock.java",
+      "line": 25,
+      "lines": 38,
+      "summary": "An owner took access from this user: the owner's public links no longer let them in.",
+      "annotations": [
+        "Entity",
+        "Getter",
+        "IdClass",
+        "NoArgsConstructor",
+        "Setter",
+        "Table"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "entity",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "table": "share_blocks",
+      "columns": [
+        {
+          "field": "ownerId",
+          "type": "UUID",
+          "column": "owner_id"
+        },
+        {
+          "field": "userId",
+          "type": "UUID",
+          "column": "user_id"
+        },
+        {
+          "field": "createdAt",
+          "type": "Instant",
+          "column": "created_at"
+        }
+      ],
+      "relations": []
+    },
+    {
+      "name": "ShareBlockKey",
+      "kind": "class",
+      "package": "persistence.share.entity",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/share/entity/ShareBlockKey.java",
+      "line": 18,
+      "lines": 24,
+      "summary": "The key of ShareBlock: one row per owner and user.",
+      "annotations": [
+        "AllArgsConstructor",
+        "EqualsAndHashCode",
+        "Getter",
+        "NoArgsConstructor",
+        "Setter",
+        "link"
+      ],
+      "extends": null,
+      "implements": [
+        "Serializable"
+      ],
+      "uses": [],
+      "test": false,
+      "role": "class",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "ShareInvite",
+      "kind": "class",
+      "package": "persistence.share.entity",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/share/entity/ShareInvite.java",
+      "line": 31,
+      "lines": 79,
+      "summary": "A personal invitation sent by email.",
+      "annotations": [
+        "Entity",
+        "Getter",
+        "NoArgsConstructor",
+        "Setter",
+        "Table",
+        "link"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "entity",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "table": "share_invites",
+      "columns": [
+        {
+          "field": "id",
+          "type": "UUID",
+          "column": null
+        },
+        {
+          "field": "topicId",
+          "type": "UUID",
+          "column": "topic_id"
+        },
+        {
+          "field": "ownerId",
+          "type": "UUID",
+          "column": "owner_id"
+        },
+        {
+          "field": "email",
+          "type": "String",
+          "column": "email"
+        },
+        {
+          "field": "tokenHash",
+          "type": "String",
+          "column": "token_hash"
+        },
+        {
+          "field": "expiresAt",
+          "type": "Instant",
+          "column": "expires_at"
+        },
+        {
+          "field": "createdAt",
+          "type": "Instant",
+          "column": "created_at"
+        },
+        {
+          "field": "acceptedAt",
+          "type": "Instant",
+          "column": "accepted_at"
+        },
+        {
+          "field": "revokedAt",
+          "type": "Instant",
+          "column": "revoked_at"
+        },
+        {
+          "field": "topicIds",
+          "type": "Set<UUID>",
+          "column": "topic_id"
+        }
+      ],
+      "relations": []
+    },
+    {
+      "name": "ShareLink",
+      "kind": "class",
+      "package": "persistence.share.entity",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/share/entity/ShareLink.java",
+      "line": 32,
+      "lines": 75,
+      "summary": "The public link of one tree.",
+      "annotations": [
+        "Entity",
+        "Getter",
+        "NoArgsConstructor",
+        "Setter",
+        "Table"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "entity",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "table": "share_links",
+      "columns": [
+        {
+          "field": "id",
+          "type": "UUID",
+          "column": null
+        },
+        {
+          "field": "topicId",
+          "type": "UUID",
+          "column": "topic_id"
+        },
+        {
+          "field": "ownerId",
+          "type": "UUID",
+          "column": "owner_id"
+        },
+        {
+          "field": "token",
+          "type": "String",
+          "column": "token"
+        },
+        {
+          "field": "enabled",
+          "type": "boolean",
+          "column": "enabled"
+        },
+        {
+          "field": "topicIds",
+          "type": "Set<UUID>",
+          "column": "topic_id"
+        },
+        {
+          "field": "createdAt",
+          "type": "Instant",
+          "column": "created_at"
+        },
+        {
+          "field": "updatedAt",
+          "type": "Instant",
+          "column": "updated_at"
+        }
+      ],
+      "relations": []
+    },
+    {
+      "name": "TopicGrant",
+      "kind": "class",
+      "package": "persistence.share.entity",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/share/entity/TopicGrant.java",
+      "line": 27,
+      "lines": 56,
+      "summary": "Someone other than the owner may see a topic and its whole subtree.",
+      "annotations": [
+        "Entity",
+        "Getter",
+        "NoArgsConstructor",
+        "Setter",
+        "Table",
+        "code"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "TopicRole"
+      ],
+      "test": false,
+      "role": "entity",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "table": "topic_grants",
+      "columns": [
+        {
+          "field": "id",
+          "type": "UUID",
+          "column": null
+        },
+        {
+          "field": "topicId",
+          "type": "UUID",
+          "column": "topic_id"
+        },
+        {
+          "field": "ownerId",
+          "type": "UUID",
+          "column": "owner_id"
+        },
+        {
+          "field": "granteeId",
+          "type": "UUID",
+          "column": "grantee_id"
+        },
+        {
+          "field": "role",
+          "type": "TopicRole",
+          "column": "role"
+        },
+        {
+          "field": "source",
+          "type": "GrantSource",
+          "column": "source"
+        },
+        {
+          "field": "createdAt",
+          "type": "Instant",
+          "column": "created_at"
+        },
+        {
+          "field": "seenAt",
+          "type": "Instant",
+          "column": "seen_at"
+        }
+      ],
+      "relations": []
+    },
+    {
+      "name": "ShareMapper",
+      "kind": "interface",
+      "package": "persistence.share.mapper",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/share/mapper/ShareMapper.java",
+      "line": 13,
+      "lines": 23,
+      "summary": "",
+      "annotations": [
+        "Mapper"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "MapStructConfig",
+        "ShareInvite",
+        "ShareInviteResponse"
+      ],
+      "test": false,
+      "role": "interface",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "ShareBlockRepository",
+      "kind": "interface",
+      "package": "persistence.share.repository",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/share/repository/ShareBlockRepository.java",
+      "line": 12,
+      "lines": 28,
+      "summary": "",
+      "annotations": [],
+      "extends": "JpaRepository<ShareBlock, ShareBlockKey>",
+      "implements": [],
+      "uses": [
+        "ShareBlock",
+        "ShareBlockKey"
+      ],
+      "test": false,
+      "role": "repository",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "entity": "ShareBlock",
+      "queries": [
+        "conflict",
+        "deleteBlock",
+        "existsByOwnerIdAndUserId",
+        "insertIfAbsent",
+        "values"
+      ]
+    },
+    {
+      "name": "ShareInviteRepository",
+      "kind": "interface",
+      "package": "persistence.share.repository",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/share/repository/ShareInviteRepository.java",
+      "line": 15,
+      "lines": 35,
+      "summary": "",
+      "annotations": [],
+      "extends": "JpaRepository<ShareInvite, UUID>",
+      "implements": [],
+      "uses": [
+        "ShareInvite"
+      ],
+      "test": false,
+      "role": "repository",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "entity": "ShareInvite",
+      "queries": [
+        "findByHashForUpdate",
+        "findFirstByOwnerIdAndEmailOrderByCreatedAtDesc",
+        "findPendingOfOwner"
+      ]
+    },
+    {
+      "name": "ShareLinkRepository",
+      "kind": "interface",
+      "package": "persistence.share.repository",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/share/repository/ShareLinkRepository.java",
+      "line": 10,
+      "lines": 19,
+      "summary": "",
+      "annotations": [],
+      "extends": "JpaRepository<ShareLink, UUID>",
+      "implements": [],
+      "uses": [
+        "ShareLink"
+      ],
+      "test": false,
+      "role": "repository",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "entity": "ShareLink",
+      "queries": [
+        "findByOwnerIdAndEnabledTrue",
+        "findByToken",
+        "findByTopicId"
+      ]
+    },
+    {
+      "name": "TopicGrantRepository",
+      "kind": "interface",
+      "package": "persistence.share.repository",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/share/repository/TopicGrantRepository.java",
+      "line": 14,
+      "lines": 61,
+      "summary": "",
+      "annotations": [],
+      "extends": "JpaRepository<TopicGrant, UUID>",
+      "implements": [],
+      "uses": [
+        "TopicGrant"
+      ],
+      "test": false,
+      "role": "repository",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": [],
+      "entity": "TopicGrant",
+      "queries": [
+        "chain",
+        "conflict",
+        "deleteByIds",
+        "findByGranteeId",
+        "findByOwnerId",
+        "findRolesOnTopic",
+        "in",
+        "insertIfAbsent",
+        "markSeen",
+        "values"
+      ]
     },
     {
       "name": "RefreshTokenDaoService",
@@ -3347,9 +4676,9 @@
       "project": "",
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/topic/mapper/TopicMapper.java",
-      "line": 15,
-      "lines": 29,
-      "summary": "Topics are only ever their owner's while sharing is not built: the role is owner, nothing is shared or unseen.",
+      "line": 16,
+      "lines": 50,
+      "summary": "Practice is not built yet, so nothing is due.",
       "annotations": [
         "Mapper"
       ],
@@ -3359,6 +4688,7 @@
         "MapStructConfig",
         "Topic",
         "TopicResponse",
+        "TopicRole",
         "UserResponse"
       ],
       "test": false,
@@ -3376,8 +4706,8 @@
       "project": "",
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/topic/repository/TopicRepository.java",
-      "line": 10,
-      "lines": 20,
+      "line": 9,
+      "lines": 17,
       "summary": "",
       "annotations": [],
       "extends": "JpaRepository<Topic, UUID>",
@@ -3394,7 +4724,6 @@
       "handlers": [],
       "entity": "Topic",
       "queries": [
-        "findByIdAndOwnerId",
         "findByOwnerId",
         "findByOwnerIdAndParentIdIsNullOrderByPositionAsc",
         "findByOwnerIdAndParentIdOrderByPositionAsc"
@@ -3407,8 +4736,8 @@
       "project": "",
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/user/dao/UserDaoService.java",
-      "line": 8,
-      "lines": 21,
+      "line": 10,
+      "lines": 26,
       "summary": "",
       "annotations": [],
       "extends": null,
@@ -3431,8 +4760,8 @@
       "project": "",
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/persistence/user/dao/UserDaoServiceImpl.java",
-      "line": 14,
-      "lines": 48,
+      "line": 16,
+      "lines": 56,
       "summary": "",
       "annotations": [
         "RequiredArgsConstructor",
@@ -3867,8 +5196,8 @@
       "project": "",
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/card/CardWebService.java",
-      "line": 15,
-      "lines": 39,
+      "line": 16,
+      "lines": 40,
       "summary": "Cards in a user's topics.",
       "annotations": [],
       "extends": null,
@@ -3894,12 +5223,13 @@
       "project": "",
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/card/CardWebServiceImpl.java",
-      "line": 37,
-      "lines": 175,
+      "line": 40,
+      "lines": 182,
       "summary": "Reads run in a transaction too: a card's tags and pictures load lazily while it is mapped.",
       "annotations": [
         "RequiredArgsConstructor",
-        "Service"
+        "Service",
+        "link"
       ],
       "extends": null,
       "implements": [
@@ -3917,6 +5247,8 @@
         "Image",
         "ImageDaoService",
         "ImageProperties",
+        "Topic",
+        "TopicAction",
         "TopicGuard",
         "UpdateCardRequest"
       ],
@@ -4060,8 +5392,8 @@
       "project": "",
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/image/ImageWebServiceImpl.java",
-      "line": 28,
-      "lines": 147,
+      "line": 29,
+      "lines": 148,
       "summary": "",
       "annotations": [
         "RequiredArgsConstructor",
@@ -4188,25 +5520,575 @@
       "handlers": []
     },
     {
+      "name": "CardCopy",
+      "kind": "record",
+      "package": "service.share",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/share/CardCopy.java",
+      "line": 7,
+      "lines": 9,
+      "summary": "A card read for copying: its content, and its pictures by the ids of the originals.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "SharedEntry",
+      "kind": "record",
+      "package": "service.share",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/share/SharedEntry.java",
+      "line": 14,
+      "lines": 17,
+      "summary": "One topic of Shared with me before its card count is known: parentId is null where the part the user sees starts, and path names the parents above it they cannot see.",
+      "annotations": [
+        "code"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "Topic",
+        "TopicRole",
+        "UserResponse"
+      ],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "SharedTopicWebService",
+      "kind": "interface",
+      "package": "service.share",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/share/SharedTopicWebService.java",
+      "line": 10,
+      "lines": 37,
+      "summary": "The side of the people a topic is shared with: Shared with me, coming in, leaving.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "AcceptShareRequest",
+        "TopicResponse"
+      ],
+      "test": false,
+      "role": "interface",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "SharedTopicWebServiceImpl",
+      "kind": "class",
+      "package": "service.share",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/share/SharedTopicWebServiceImpl.java",
+      "line": 49,
+      "lines": 233,
+      "summary": "",
+      "annotations": [
+        "RequiredArgsConstructor",
+        "Service"
+      ],
+      "extends": null,
+      "implements": [
+        "SharedTopicWebService"
+      ],
+      "uses": [
+        "AcceptShareRequest",
+        "ApiException",
+        "CardDaoService",
+        "GrantSource",
+        "OpaqueTokens",
+        "ShareBlockDaoService",
+        "ShareInvite",
+        "ShareInviteDaoService",
+        "ShareLink",
+        "ShareLinkDaoService",
+        "Topic",
+        "TopicAccess",
+        "TopicAction",
+        "TopicDaoService",
+        "TopicForest",
+        "TopicGrant",
+        "TopicGrantDaoService",
+        "TopicGuard",
+        "TopicMapper",
+        "TopicResponse",
+        "TopicRole",
+        "User",
+        "UserDaoService",
+        "UserMapper",
+        "UserResponse"
+      ],
+      "test": false,
+      "role": "service",
+      "injects": [
+        [
+          "TopicDaoService",
+          "topics"
+        ],
+        [
+          "CardDaoService",
+          "cards"
+        ],
+        [
+          "UserDaoService",
+          "users"
+        ],
+        [
+          "TopicGrantDaoService",
+          "grants"
+        ],
+        [
+          "ShareLinkDaoService",
+          "links"
+        ],
+        [
+          "ShareInviteDaoService",
+          "invites"
+        ],
+        [
+          "ShareBlockDaoService",
+          "blocks"
+        ],
+        [
+          "TopicGuard",
+          "guard"
+        ],
+        [
+          "TopicMapper",
+          "topicMapper"
+        ],
+        [
+          "UserMapper",
+          "userMapper"
+        ],
+        [
+          "Clock",
+          "clock"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "SharedTree",
+      "kind": "record",
+      "package": "service.share",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/share/SharedTree.java",
+      "line": 11,
+      "lines": 22,
+      "summary": "One owner's tree that is being shared: its root and all the owner's topics around it.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "Topic",
+        "TopicForest"
+      ],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "SharingWebService",
+      "kind": "interface",
+      "package": "service.share",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/share/SharingWebService.java",
+      "line": 17,
+      "lines": 54,
+      "summary": "The owner's side of sharing: who can see a tree, and the ways in.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "InviteRequest",
+        "ShareTopicsRequest",
+        "SharingResponse",
+        "UpdateLinkRequest"
+      ],
+      "test": false,
+      "role": "interface",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "SharingWebServiceImpl",
+      "kind": "class",
+      "package": "service.share",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/share/SharingWebServiceImpl.java",
+      "line": 67,
+      "lines": 391,
+      "summary": "Each method is one transaction: replacing a person's grants, or revoking an old invitation and saving its successor, must land together.",
+      "annotations": [
+        "RequiredArgsConstructor",
+        "Service",
+        "link"
+      ],
+      "extends": null,
+      "implements": [
+        "SharingWebService"
+      ],
+      "uses": [
+        "ApiException",
+        "CardDaoService",
+        "GrantSource",
+        "InviteRequest",
+        "InvitedTopic",
+        "Language",
+        "OpaqueTokens",
+        "RetryAfterResponse",
+        "ShareBlockDaoService",
+        "ShareInvite",
+        "ShareInviteDaoService",
+        "ShareInviteIssued",
+        "ShareInviteResponse",
+        "ShareLink",
+        "ShareLinkDaoService",
+        "ShareLinkResponse",
+        "ShareMapper",
+        "ShareMemberResponse",
+        "ShareTopicsRequest",
+        "SharingProperties",
+        "SharingResponse",
+        "Topic",
+        "TopicAction",
+        "TopicDaoService",
+        "TopicForest",
+        "TopicGrant",
+        "TopicGrantDaoService",
+        "TopicGuard",
+        "TopicRole",
+        "UpdateLinkRequest",
+        "User",
+        "UserDaoService",
+        "UserMapper",
+        "UserSettings",
+        "UserSettingsDaoService"
+      ],
+      "test": false,
+      "role": "service",
+      "injects": [
+        [
+          "TopicDaoService",
+          "topics"
+        ],
+        [
+          "CardDaoService",
+          "cards"
+        ],
+        [
+          "UserDaoService",
+          "users"
+        ],
+        [
+          "UserSettingsDaoService",
+          "settings"
+        ],
+        [
+          "TopicGrantDaoService",
+          "grants"
+        ],
+        [
+          "ShareLinkDaoService",
+          "links"
+        ],
+        [
+          "ShareInviteDaoService",
+          "invites"
+        ],
+        [
+          "ShareBlockDaoService",
+          "blocks"
+        ],
+        [
+          "TopicGuard",
+          "guard"
+        ],
+        [
+          "UserMapper",
+          "userMapper"
+        ],
+        [
+          "ShareMapper",
+          "shareMapper"
+        ],
+        [
+          "SharingProperties",
+          "properties"
+        ],
+        [
+          "ApplicationEventPublisher",
+          "events"
+        ],
+        [
+          "Clock",
+          "clock"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "TopicCopyPlan",
+      "kind": "record",
+      "package": "service.share",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/share/TopicCopyPlan.java",
+      "line": 15,
+      "lines": 17,
+      "summary": "What a copy will be made of, read in one transaction: the topics of the subtree (parents first), their cards oldest first, and every picture they show.",
+      "annotations": [
+        "code"
+      ],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "Image",
+        "Topic"
+      ],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "TopicCopyWebService",
+      "kind": "interface",
+      "package": "service.share",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/share/TopicCopyWebService.java",
+      "line": 9,
+      "lines": 19,
+      "summary": "\"Copy to my topics\": a topic someone can see becomes theirs to change.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "CopyTopicRequest",
+        "TopicResponse"
+      ],
+      "test": false,
+      "role": "interface",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "TopicCopyWebServiceImpl",
+      "kind": "class",
+      "package": "service.share",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/share/TopicCopyWebServiceImpl.java",
+      "line": 41,
+      "lines": 179,
+      "summary": "Three steps, as an upload does: the subtree is read in one short transaction; the picture files are copied inside the store with no transaction open, so a slow bucket never holds a database connectio…",
+      "annotations": [
+        "Service",
+        "Slf4j"
+      ],
+      "extends": null,
+      "implements": [
+        "TopicCopyWebService"
+      ],
+      "uses": [
+        "ApiException",
+        "Card",
+        "CardDaoService",
+        "CopyTopicRequest",
+        "Image",
+        "ImageDaoService",
+        "ImageFileStore",
+        "SharingProperties",
+        "Topic",
+        "TopicAction",
+        "TopicDaoService",
+        "TopicForest",
+        "TopicGuard",
+        "TopicMapper",
+        "TopicResponse",
+        "UserDaoService",
+        "UserMapper"
+      ],
+      "test": false,
+      "role": "service",
+      "injects": [
+        [
+          "TopicDaoService",
+          "topics"
+        ],
+        [
+          "CardDaoService",
+          "cards"
+        ],
+        [
+          "ImageDaoService",
+          "images"
+        ],
+        [
+          "UserDaoService",
+          "users"
+        ],
+        [
+          "ImageFileStore",
+          "files"
+        ],
+        [
+          "TopicGuard",
+          "guard"
+        ],
+        [
+          "TopicMapper",
+          "topicMapper"
+        ],
+        [
+          "UserMapper",
+          "userMapper"
+        ],
+        [
+          "SharingProperties",
+          "properties"
+        ],
+        [
+          "TransactionTemplate",
+          "reading"
+        ],
+        [
+          "TransactionTemplate",
+          "writing"
+        ],
+        [
+          "PlatformTransactionManager",
+          "transactionManager"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "TopicAccess",
+      "kind": "record",
+      "package": "service.topic",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/topic/TopicAccess.java",
+      "line": 7,
+      "lines": 9,
+      "summary": "A topic the caller was let through to, and the role that let them.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "Topic",
+        "TopicRole"
+      ],
+      "test": false,
+      "role": "record",
+      "injects": [],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
+      "name": "TopicForest",
+      "kind": "class",
+      "package": "service.topic",
+      "project": "",
+      "module": "",
+      "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/topic/TopicForest.java",
+      "line": 22,
+      "lines": 147,
+      "summary": "One owner's topics as trees in memory, built from the flat list the database gives.",
+      "annotations": [],
+      "extends": null,
+      "implements": [],
+      "uses": [
+        "Topic"
+      ],
+      "test": false,
+      "role": "class",
+      "injects": [
+        [
+          "Collection<Topic>",
+          "topics"
+        ]
+      ],
+      "endpoints": [],
+      "jobs": [],
+      "beans": [],
+      "handlers": []
+    },
+    {
       "name": "TopicGuard",
       "kind": "class",
       "package": "service.topic",
       "project": "",
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/topic/TopicGuard.java",
-      "line": 19,
-      "lines": 28,
+      "line": 28,
+      "lines": 54,
       "summary": "The one place that decides whether a user may touch a topic and the cards in it.",
       "annotations": [
         "Component",
-        "RequiredArgsConstructor"
+        "RequiredArgsConstructor",
+        "link"
       ],
       "extends": null,
       "implements": [],
       "uses": [
         "ApiException",
         "Topic",
-        "TopicDaoService"
+        "TopicAction",
+        "TopicDaoService",
+        "TopicGrantDaoService",
+        "TopicRole"
       ],
       "test": false,
       "role": "component",
@@ -4214,6 +6096,10 @@
         [
           "TopicDaoService",
           "topics"
+        ],
+        [
+          "TopicGrantDaoService",
+          "grants"
         ]
       ],
       "endpoints": [],
@@ -4255,12 +6141,13 @@
       "project": "",
       "module": "",
       "file": "src/main/java/denys/mazurenko/prepdeckbackend/service/topic/TopicWebServiceImpl.java",
-      "line": 30,
-      "lines": 138,
-      "summary": "",
+      "line": 43,
+      "lines": 171,
+      "summary": "Every change goes through TopicGuard with TopicAction#EDIT, and works on the owner's tree (the topic's owner, not necessarily the caller), so a role that may edit someone else's topics later needs no…",
       "annotations": [
         "RequiredArgsConstructor",
-        "Service"
+        "Service",
+        "link"
       ],
       "extends": null,
       "implements": [
@@ -4272,8 +6159,15 @@
         "CreateTopicRequest",
         "MoveTopicRequest",
         "RenameTopicRequest",
+        "ShareInvite",
+        "ShareInviteDaoService",
+        "ShareLink",
+        "ShareLinkDaoService",
         "Topic",
+        "TopicAction",
         "TopicDaoService",
+        "TopicGrant",
+        "TopicGrantDaoService",
         "TopicMapper",
         "TopicResponse",
         "UserDaoService",
@@ -4296,6 +6190,18 @@
           "users"
         ],
         [
+          "TopicGrantDaoService",
+          "grants"
+        ],
+        [
+          "ShareLinkDaoService",
+          "links"
+        ],
+        [
+          "ShareInviteDaoService",
+          "invites"
+        ],
+        [
           "TopicGuard",
           "guard"
         ],
@@ -4306,6 +6212,10 @@
         [
           "UserMapper",
           "userMapper"
+        ],
+        [
+          "Clock",
+          "clock"
         ]
       ],
       "endpoints": [],
@@ -4344,6 +6254,27 @@
       "project": ""
     },
     {
+      "from": "SharedTopicController",
+      "to": "SharedTopicWebService",
+      "kind": "injects",
+      "field": "sharedTopicWebService",
+      "project": ""
+    },
+    {
+      "from": "SharedTopicController",
+      "to": "TopicCopyWebService",
+      "kind": "injects",
+      "field": "topicCopyWebService",
+      "project": ""
+    },
+    {
+      "from": "SharingController",
+      "to": "SharingWebService",
+      "kind": "injects",
+      "field": "sharingWebService",
+      "project": ""
+    },
+    {
       "from": "TopicController",
       "to": "TopicWebService",
       "kind": "injects",
@@ -4355,6 +6286,13 @@
       "to": "CardWebService",
       "kind": "injects",
       "field": "cardWebService",
+      "project": ""
+    },
+    {
+      "from": "TopicRole",
+      "to": "TopicAction",
+      "kind": "injects",
+      "field": "actions",
       "project": ""
     },
     {
@@ -4383,6 +6321,27 @@
       "to": "EmailTemplateProperties",
       "kind": "injects",
       "field": "properties",
+      "project": ""
+    },
+    {
+      "from": "ShareInviteMailListener",
+      "to": "EmailService",
+      "kind": "injects",
+      "field": "emailService",
+      "project": ""
+    },
+    {
+      "from": "ShareInviteMailListener",
+      "to": "AppMailProperties",
+      "kind": "injects",
+      "field": "properties",
+      "project": ""
+    },
+    {
+      "from": "ShareInviteMailListener",
+      "to": "EmailTemplateProperties",
+      "kind": "injects",
+      "field": "templates",
       "project": ""
     },
     {
@@ -4446,6 +6405,34 @@
       "to": "UserSettingsRepository",
       "kind": "injects",
       "field": "userSettingsRepository",
+      "project": ""
+    },
+    {
+      "from": "ShareBlockDaoServiceImpl",
+      "to": "ShareBlockRepository",
+      "kind": "injects",
+      "field": "blockRepository",
+      "project": ""
+    },
+    {
+      "from": "ShareInviteDaoServiceImpl",
+      "to": "ShareInviteRepository",
+      "kind": "injects",
+      "field": "inviteRepository",
+      "project": ""
+    },
+    {
+      "from": "ShareLinkDaoServiceImpl",
+      "to": "ShareLinkRepository",
+      "kind": "injects",
+      "field": "linkRepository",
+      "project": ""
+    },
+    {
+      "from": "TopicGrantDaoServiceImpl",
+      "to": "TopicGrantRepository",
+      "kind": "injects",
+      "field": "grantRepository",
       "project": ""
     },
     {
@@ -4617,10 +6604,241 @@
       "project": ""
     },
     {
+      "from": "SharedTopicWebServiceImpl",
+      "to": "TopicDaoService",
+      "kind": "injects",
+      "field": "topics",
+      "project": ""
+    },
+    {
+      "from": "SharedTopicWebServiceImpl",
+      "to": "CardDaoService",
+      "kind": "injects",
+      "field": "cards",
+      "project": ""
+    },
+    {
+      "from": "SharedTopicWebServiceImpl",
+      "to": "UserDaoService",
+      "kind": "injects",
+      "field": "users",
+      "project": ""
+    },
+    {
+      "from": "SharedTopicWebServiceImpl",
+      "to": "TopicGrantDaoService",
+      "kind": "injects",
+      "field": "grants",
+      "project": ""
+    },
+    {
+      "from": "SharedTopicWebServiceImpl",
+      "to": "ShareLinkDaoService",
+      "kind": "injects",
+      "field": "links",
+      "project": ""
+    },
+    {
+      "from": "SharedTopicWebServiceImpl",
+      "to": "ShareInviteDaoService",
+      "kind": "injects",
+      "field": "invites",
+      "project": ""
+    },
+    {
+      "from": "SharedTopicWebServiceImpl",
+      "to": "ShareBlockDaoService",
+      "kind": "injects",
+      "field": "blocks",
+      "project": ""
+    },
+    {
+      "from": "SharedTopicWebServiceImpl",
+      "to": "TopicGuard",
+      "kind": "injects",
+      "field": "guard",
+      "project": ""
+    },
+    {
+      "from": "SharedTopicWebServiceImpl",
+      "to": "TopicMapper",
+      "kind": "injects",
+      "field": "topicMapper",
+      "project": ""
+    },
+    {
+      "from": "SharedTopicWebServiceImpl",
+      "to": "UserMapper",
+      "kind": "injects",
+      "field": "userMapper",
+      "project": ""
+    },
+    {
+      "from": "SharingWebServiceImpl",
+      "to": "TopicDaoService",
+      "kind": "injects",
+      "field": "topics",
+      "project": ""
+    },
+    {
+      "from": "SharingWebServiceImpl",
+      "to": "CardDaoService",
+      "kind": "injects",
+      "field": "cards",
+      "project": ""
+    },
+    {
+      "from": "SharingWebServiceImpl",
+      "to": "UserDaoService",
+      "kind": "injects",
+      "field": "users",
+      "project": ""
+    },
+    {
+      "from": "SharingWebServiceImpl",
+      "to": "UserSettingsDaoService",
+      "kind": "injects",
+      "field": "settings",
+      "project": ""
+    },
+    {
+      "from": "SharingWebServiceImpl",
+      "to": "TopicGrantDaoService",
+      "kind": "injects",
+      "field": "grants",
+      "project": ""
+    },
+    {
+      "from": "SharingWebServiceImpl",
+      "to": "ShareLinkDaoService",
+      "kind": "injects",
+      "field": "links",
+      "project": ""
+    },
+    {
+      "from": "SharingWebServiceImpl",
+      "to": "ShareInviteDaoService",
+      "kind": "injects",
+      "field": "invites",
+      "project": ""
+    },
+    {
+      "from": "SharingWebServiceImpl",
+      "to": "ShareBlockDaoService",
+      "kind": "injects",
+      "field": "blocks",
+      "project": ""
+    },
+    {
+      "from": "SharingWebServiceImpl",
+      "to": "TopicGuard",
+      "kind": "injects",
+      "field": "guard",
+      "project": ""
+    },
+    {
+      "from": "SharingWebServiceImpl",
+      "to": "UserMapper",
+      "kind": "injects",
+      "field": "userMapper",
+      "project": ""
+    },
+    {
+      "from": "SharingWebServiceImpl",
+      "to": "ShareMapper",
+      "kind": "injects",
+      "field": "shareMapper",
+      "project": ""
+    },
+    {
+      "from": "SharingWebServiceImpl",
+      "to": "SharingProperties",
+      "kind": "injects",
+      "field": "properties",
+      "project": ""
+    },
+    {
+      "from": "TopicCopyWebServiceImpl",
+      "to": "TopicDaoService",
+      "kind": "injects",
+      "field": "topics",
+      "project": ""
+    },
+    {
+      "from": "TopicCopyWebServiceImpl",
+      "to": "CardDaoService",
+      "kind": "injects",
+      "field": "cards",
+      "project": ""
+    },
+    {
+      "from": "TopicCopyWebServiceImpl",
+      "to": "ImageDaoService",
+      "kind": "injects",
+      "field": "images",
+      "project": ""
+    },
+    {
+      "from": "TopicCopyWebServiceImpl",
+      "to": "UserDaoService",
+      "kind": "injects",
+      "field": "users",
+      "project": ""
+    },
+    {
+      "from": "TopicCopyWebServiceImpl",
+      "to": "ImageFileStore",
+      "kind": "injects",
+      "field": "files",
+      "project": ""
+    },
+    {
+      "from": "TopicCopyWebServiceImpl",
+      "to": "TopicGuard",
+      "kind": "injects",
+      "field": "guard",
+      "project": ""
+    },
+    {
+      "from": "TopicCopyWebServiceImpl",
+      "to": "TopicMapper",
+      "kind": "injects",
+      "field": "topicMapper",
+      "project": ""
+    },
+    {
+      "from": "TopicCopyWebServiceImpl",
+      "to": "UserMapper",
+      "kind": "injects",
+      "field": "userMapper",
+      "project": ""
+    },
+    {
+      "from": "TopicCopyWebServiceImpl",
+      "to": "SharingProperties",
+      "kind": "injects",
+      "field": "properties",
+      "project": ""
+    },
+    {
+      "from": "TopicForest",
+      "to": "Topic",
+      "kind": "injects",
+      "field": "topics",
+      "project": ""
+    },
+    {
       "from": "TopicGuard",
       "to": "TopicDaoService",
       "kind": "injects",
       "field": "topics",
+      "project": ""
+    },
+    {
+      "from": "TopicGuard",
+      "to": "TopicGrantDaoService",
+      "kind": "injects",
+      "field": "grants",
       "project": ""
     },
     {
@@ -4642,6 +6860,27 @@
       "to": "UserDaoService",
       "kind": "injects",
       "field": "users",
+      "project": ""
+    },
+    {
+      "from": "TopicWebServiceImpl",
+      "to": "TopicGrantDaoService",
+      "kind": "injects",
+      "field": "grants",
+      "project": ""
+    },
+    {
+      "from": "TopicWebServiceImpl",
+      "to": "ShareLinkDaoService",
+      "kind": "injects",
+      "field": "links",
+      "project": ""
+    },
+    {
+      "from": "TopicWebServiceImpl",
+      "to": "ShareInviteDaoService",
+      "kind": "injects",
+      "field": "invites",
       "project": ""
     },
     {
@@ -4792,6 +7031,10 @@
           "value": "reset-password"
         },
         {
+          "key": "prep-deck.mail.templates.invite",
+          "value": "invite"
+        },
+        {
           "key": "prep-deck.verification.code-ttl",
           "value": "15m"
         },
@@ -4870,6 +7113,22 @@
         {
           "key": "prep-deck.cards.max-tags",
           "value": "10"
+        },
+        {
+          "key": "prep-deck.sharing.link-base-url",
+          "value": "${SHARE_LINK_BASE_URL}"
+        },
+        {
+          "key": "prep-deck.sharing.invite-ttl",
+          "value": "14d"
+        },
+        {
+          "key": "prep-deck.sharing.invite-cooldown",
+          "value": "60s"
+        },
+        {
+          "key": "prep-deck.sharing.max-copy-cards",
+          "value": "2000"
         },
         {
           "key": "prep-deck.cors.mapping",

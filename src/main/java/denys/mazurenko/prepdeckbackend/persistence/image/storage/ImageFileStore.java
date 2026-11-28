@@ -23,6 +23,9 @@ public interface ImageFileStore {
      */
     Optional<Resource> read(UUID id, long size);
 
+    /** A second object with the same bytes under {@code to}; the store copies them on its side. */
+    void copy(UUID from, UUID to);
+
     /** Nothing happens when the file is already gone. */
     void delete(UUID id);
 }

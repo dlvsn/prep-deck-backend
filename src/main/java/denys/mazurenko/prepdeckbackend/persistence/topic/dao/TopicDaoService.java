@@ -10,7 +10,7 @@ public interface TopicDaoService {
 
     List<Topic> findByOwner(UUID ownerId);
 
-    Optional<Topic> findOwned(UUID id, UUID ownerId);
+    Optional<Topic> findById(UUID id);
 
     /** The children of a topic, or the roots when parentId is null, in their order. */
     List<Topic> findSiblings(UUID ownerId, UUID parentId);

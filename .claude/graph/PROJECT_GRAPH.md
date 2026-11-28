@@ -16,8 +16,9 @@ spec — topics, cards, practice grades, sharing roles — is what this API is b
 its `src/renderer/api/repositories.ts` lists every call it will make, and its mocks show what each
 answers.
 
-Built so far: accounts and sessions (`/api/auth/**`), settings, topics, cards and card pictures.
-The client has no mocks any more and talks to this service only. Practice and sharing follow.
+Built so far: accounts and sessions (`/api/auth/**`), settings, topics, cards, card pictures and
+sharing (`/api/topics/{id}/sharing/**`, `/api/shares/**`). The client has no mocks any more and
+talks to this service only; its sharing screens are still to come. Practice follows.
 
 ## Decisions already taken
 
@@ -106,10 +107,13 @@ and sums subtrees. Create appends after the siblings; `POST /topics/{id}/move` r
 renumbers both sets of siblings in one transaction and refuses `topics.moveIntoItself`. Delete
 leaves the subtree and its cards to `ON DELETE CASCADE`.
 
-**Access goes through `TopicGuard.require` alone**: today a topic is its owner's only, and
-anyone else's answers 404 `errors.noAccess` (ids cannot be probed). Card calls check the card's
-topic. `TopicResponse.role` is always `owner`, `shared`/`unseen` false, `dueCount` 0; sharing
-will widen `TopicGuard` and fill these, not change the services that call it.
+**Access goes through `TopicGuard.require(user, topic, action)` alone.** The owner holds
+`OWNER`; anyone else holds the role of a grant on the topic or on a topic above it (one recursive
+query), and `TopicRole.allows(TopicAction)` is the one list of what each role may do: `VIEW`,
+`EDIT`, `SHARE`. A topic the caller cannot see answers 404 `errors.noAccess` (ids cannot be
+probed); one they may see but not change answers 403 `errors.readOnly`. Card calls check the
+card's topic. Changes work on the topic owner's tree, not the caller's, and a topic or card never
+leaves its owner's trees. `dueCount` is 0 until practice exists.
 
 **Cards**: question (≤ 500), Markdown answer (≤ 20 000), tags in `card_tags` (lower case, no `#`,
 no repeats, ≤ 10, normalised by the server), pictures in `card_images` in display order. Lists are
@@ -117,6 +121,54 @@ newest first. `PATCH /cards/{id}` changes only the fields it carries; `topicId` 
 `POST /cards/{id}/duplicate` takes the copy's question from the client (it is localised: "… (copy)",
 "… (копія)") and shares the original's image rows. `status` is always `new` and `dueAt` null until
 practice exists; editing never touches progress.
+
+## Sharing
+
+**Only the owner changes a topic.** Everyone it is shared with is a `VIEWER`: they open it,
+practise it with progress of their own, and may copy it into their own topics. `EDITOR` is already
+in `TopicRole` (and the client knows the code) but nobody can be given it: adding it means
+allowing it in `ck_topic_grants_role` and `TopicRole.isGrantable()`, nothing in the services.
+
+**A grant is the only access** (`topic_grants`, unique per topic and person). A grant on a topic
+opens its whole subtree, subtopics added later included; a subtopic can be granted alone. A
+person's grants are kept outermost (`TopicForest.outermost`): a subtopic under a granted topic is
+never granted again. Grants are read on every request, so a removed grant locks its holder out
+at once, **whatever link they still hold**.
+
+**Links and invitations only create grants**, through `POST /shares/accept` with the token:
+
+- **the public link** (`share_links`, one per tree, keyed by the tree's root): its own set of
+  topics, on or off. The token is stored as is, since the owner copies it again whenever they
+  like; reset replaces it and the old link dies at once, people who came through it stay.
+- **an invitation** (`share_invites`): by email, or by username (the account's email is used).
+  The letter (`invite-<lang>.html`, the invitee's language when they have settings, else the
+  inviter's request) carries a link of its own: SHA-256 in the table, one use, `invite-ttl`
+  (14 days), and only an account with that email can accept it. One waiting invitation per
+  address and tree (a new one revokes the last), at most one letter per `invite-cooldown`.
+  Inviting someone who already has access is refused: the owner changes their topics instead.
+
+Both kinds of link are `prep-deck.sharing.link-base-url` + token (`prepdeck://topic/` locally).
+
+**Taking access away blocks the way back**: removing a person, or everyone who came through the
+link alone, deletes their grants in that tree, revokes a letter still waiting for them there, and
+writes `share_blocks` (owner, user). A blocked user is refused by every public link of that owner
+(`share.accessRevoked`) until they accept a personal invitation, which lifts the block.
+
+**Shared with me** (`GET /shares`) lists each granted topic with its subtree, flat;
+`parentId` is null where the visible part starts and `path` names the parents above it they
+cannot see. `unseen` is true until `POST /shares/{id}/seen`. Leaving (`DELETE /shares/{id}`)
+drops the grant the topic came through, with everything under it. In My topics `shared` marks
+topics granted directly, opened by an enabled link, or listed in a waiting invitation.
+
+**Copy to my topics** (`POST /shares/{id}/copy`, at most `max-copy-cards`) reads the subtree in
+one transaction, copies the picture files inside the store (`ImageFileStore.copy`, no
+transaction open), then writes every row in one transaction, the pictures as the copier's own
+images; on failure the copied files are deleted again.
+
+**Card history and rollback are not built.** When they come: every card change already passes
+through `CardWebServiceImpl` with the caller and their role at hand, which is where a revision
+row would be written; rollback would be a new `TopicAction` held by `OWNER` alone; and
+`ImageRepository.findOrphanIds` would have to count pictures that revisions still refer to.
 
 ## Card pictures
 
@@ -176,6 +228,8 @@ Without the lock, a card saved with an old upload during the sweep would lose it
   `dto/<feature>/{request,response}`, `service/<feature>`, `api/<feature>`, and a path in
   `ApiPaths`.
 - A new open endpoint: add it to the `permitAll()` list in `SecurityConfig`.
+- Who may do what with a topic: `TopicAction` and `TopicRole` in `domain/`, checked only by
+  `TopicGuard`.
 - Settings: `src/main/resources/application.properties`.
 
 ## 1. Entry points
@@ -203,6 +257,19 @@ Everything this application does starts at one of these.
 | `GET` | `/api/images/{id}/content` | ImageController.content() | A picture's bytes; open without a token so an img tag can load it. | `api/image/ImageController.java:51` |
 | `GET` | `/api/settings` | SettingsController.get() | The signed-in user's saved picks; all fields null before the first save. | `api/settings/SettingsController.java:30` |
 | `PUT` | `/api/settings` | SettingsController.update() | Saves the whole set of picks. | `api/settings/SettingsController.java:38` |
+| `GET` | `/api/shares` | SharedTopicController.listShared() | Topics other people shared with the signed-in user, flat, each with its owner. | `api/share/SharedTopicController.java:38` |
+| `POST` | `/api/shares/accept` | SharedTopicController.accept() | Opens a public link or an invitation link and answers the first topic it opened. | `api/share/SharedTopicController.java:46` |
+| `POST` | `/api/shares/{topicId}/seen` | SharedTopicController.markSeen() | Marks the share a topic came through as opened. | `api/share/SharedTopicController.java:55` |
+| `DELETE` | `/api/shares/{topicId}` | SharedTopicController.leave() | Leaves the share a topic came through, with every topic below it. | `api/share/SharedTopicController.java:64` |
+| `POST` | `/api/shares/{topicId}/copy` | SharedTopicController.copyToMine() | Copies a topic the user can see, with its subtopics, cards and pictures, into their own topics. | `api/share/SharedTopicController.java:73` |
+| `GET` | `/api/topics/{id}/sharing` | SharingController.get() | Who can see the topic's tree: people, waiting invitations, the public link. | `api/share/SharingController.java:37` |
+| `POST` | `/api/topics/{id}/sharing/invites` | SharingController.invite() | Invites someone by email or username to topics of the tree and emails them a link. | `api/share/SharingController.java:45` |
+| `DELETE` | `/api/topics/{id}/sharing/invites/{inviteId}` | SharingController.revokeInvite() | Revokes an invitation not accepted yet; its link stops working. | `api/share/SharingController.java:54` |
+| `PUT` | `/api/topics/{id}/sharing/people/{memberId}/topics` | SharingController.changeTopics() | Replaces the topics of the tree a person may see. | `api/share/SharingController.java:63` |
+| `DELETE` | `/api/topics/{id}/sharing/people/{memberId}` | SharingController.removeMember() | Takes the whole tree from a person; the public link no longer lets them back in. | `api/share/SharingController.java:73` |
+| `PUT` | `/api/topics/{id}/sharing/link` | SharingController.updateLink() | Turns the tree's public link on or off and sets the topics it opens. | `api/share/SharingController.java:82` |
+| `POST` | `/api/topics/{id}/sharing/link/reset` | SharingController.resetLink() | Gives the public link a new token; the old link stops working, people keep their access. | `api/share/SharingController.java:91` |
+| `DELETE` | `/api/topics/{id}/sharing/link/people` | SharingController.removeLinkMembers() | Takes the tree from everyone who came through the public link alone. | `api/share/SharingController.java:99` |
 | `GET` | `/api/topics` | TopicController.listMine() | The signed-in user's topics, flat, with the number of cards directly in each. | `api/topic/TopicController.java:42` |
 | `POST` | `/api/topics` | TopicController.create() | Creates a topic at the end of its parent's children (parentId null: a root). | `api/topic/TopicController.java:50` |
 | `PATCH` | `/api/topics/{id}` | TopicController.rename() | Renames a topic. | `api/topic/TopicController.java:60` |
@@ -254,6 +321,7 @@ CardController  [controller]
       ImageRepository  [repository]
     TopicGuard  [component]
       TopicDaoService → TopicDaoServiceImpl  [service]
+      TopicGrantDaoService → TopicGrantDaoServiceImpl  [service]
 ```
 
 **ImageController — HTTP**
@@ -289,6 +357,75 @@ SettingsController  [controller]
     UserSettingsMapper  [interface]
 ```
 
+**SharedTopicController — HTTP**
+
+```
+SharedTopicController  [controller]
+  SharedTopicWebService → SharedTopicWebServiceImpl  [service]
+    CardDaoService → CardDaoServiceImpl  [service]
+      CardRepository  [repository]
+    ShareBlockDaoService → ShareBlockDaoServiceImpl  [service]
+      ShareBlockRepository  [repository]
+    ShareInviteDaoService → ShareInviteDaoServiceImpl  [service]
+      ShareInviteRepository  [repository]
+    ShareLinkDaoService → ShareLinkDaoServiceImpl  [service]
+      ShareLinkRepository  [repository]
+    TopicDaoService → TopicDaoServiceImpl  [service]
+      TopicRepository  [repository]
+    TopicGrantDaoService → TopicGrantDaoServiceImpl  [service]
+      TopicGrantRepository  [repository]
+    TopicGuard  [component]
+      TopicDaoService → TopicDaoServiceImpl  [service]
+      TopicGrantDaoService → TopicGrantDaoServiceImpl  [service]
+    TopicMapper  [interface]
+    UserDaoService → UserDaoServiceImpl  [service]
+      UserRepository  [repository]
+    UserMapper  [interface]
+  TopicCopyWebService → TopicCopyWebServiceImpl  [service]
+    CardDaoService → CardDaoServiceImpl  [service]
+      CardRepository  [repository]
+    ImageDaoService → ImageDaoServiceImpl  [service]
+      ImageRepository  [repository]
+    ImageFileStore  [interface]
+    TopicDaoService → TopicDaoServiceImpl  [service]
+      TopicRepository  [repository]
+    TopicGuard  [component]
+      TopicDaoService → TopicDaoServiceImpl  [service]
+      TopicGrantDaoService → TopicGrantDaoServiceImpl  [service]
+    TopicMapper  [interface]
+    UserDaoService → UserDaoServiceImpl  [service]
+      UserRepository  [repository]
+    UserMapper  [interface]
+```
+
+**SharingController — HTTP**
+
+```
+SharingController  [controller]
+  SharingWebService → SharingWebServiceImpl  [service]
+    CardDaoService → CardDaoServiceImpl  [service]
+      CardRepository  [repository]
+    ShareBlockDaoService → ShareBlockDaoServiceImpl  [service]
+      ShareBlockRepository  [repository]
+    ShareInviteDaoService → ShareInviteDaoServiceImpl  [service]
+      ShareInviteRepository  [repository]
+    ShareLinkDaoService → ShareLinkDaoServiceImpl  [service]
+      ShareLinkRepository  [repository]
+    ShareMapper  [interface]
+    TopicDaoService → TopicDaoServiceImpl  [service]
+      TopicRepository  [repository]
+    TopicGrantDaoService → TopicGrantDaoServiceImpl  [service]
+      TopicGrantRepository  [repository]
+    TopicGuard  [component]
+      TopicDaoService → TopicDaoServiceImpl  [service]
+      TopicGrantDaoService → TopicGrantDaoServiceImpl  [service]
+    UserDaoService → UserDaoServiceImpl  [service]
+      UserRepository  [repository]
+    UserMapper  [interface]
+    UserSettingsDaoService → UserSettingsDaoServiceImpl  [service]
+      UserSettingsRepository  [repository]
+```
+
 **TopicController — HTTP**
 
 ```
@@ -301,13 +438,21 @@ TopicController  [controller]
       ImageRepository  [repository]
     TopicGuard  [component]
       TopicDaoService → TopicDaoServiceImpl  [service]
+      TopicGrantDaoService → TopicGrantDaoServiceImpl  [service]
   TopicWebService → TopicWebServiceImpl  [service]
     CardDaoService → CardDaoServiceImpl  [service]
       CardRepository  [repository]
+    ShareInviteDaoService → ShareInviteDaoServiceImpl  [service]
+      ShareInviteRepository  [repository]
+    ShareLinkDaoService → ShareLinkDaoServiceImpl  [service]
+      ShareLinkRepository  [repository]
     TopicDaoService → TopicDaoServiceImpl  [service]
       TopicRepository  [repository]
+    TopicGrantDaoService → TopicGrantDaoServiceImpl  [service]
+      TopicGrantRepository  [repository]
     TopicGuard  [component]
       TopicDaoService → TopicDaoServiceImpl  [service]
+      TopicGrantDaoService → TopicGrantDaoServiceImpl  [service]
     TopicMapper  [interface]
     UserDaoService → UserDaoServiceImpl  [service]
       UserRepository  [repository]
@@ -352,6 +497,13 @@ TopicController  [controller]
 |---|---|---|---|---|
 | **SettingsController** | controller | - | SettingsWebService | `api/settings/SettingsController.java:23` |
 
+### `api.share`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **SharedTopicController** | controller | - | SharedTopicWebService, TopicCopyWebService | `api/share/SharedTopicController.java:30` |
+| **SharingController** | controller | The sharing of the tree the topic {id} belongs to; every call answers it as it stands after. | SharingWebService | `api/share/SharingController.java:30` |
+
 ### `api.topic`
 
 | Class | Role | Summary | Injects | Where |
@@ -368,6 +520,7 @@ TopicController  [controller]
 | **JwtConfig** | config | The key access tokens are signed and checked with (HS256), and the encoder and decoder built on it. | - | `config/JwtConfig.java:26` |
 | **MailConfig** | config | Our mail settings: the sender, the support address, where the letter templates are. | - | `config/MailConfig.java:9` |
 | **SecurityConfig** | config | Stateless JWT security: no session, no CSRF token (nothing rides on a cookie), every request outside the open auth endpoints needs a valid Bearer access token. | - | `config/SecurityConfig.java:29` |
+| **SharingConfig** | config | Sharing topics: its settings. | - | `config/SharingConfig.java:9` |
 | **AppMailProperties** | properties | Our own mail settings; the SMTP server itself is Spring Boot's `spring.mail.*`. | - | `config/AppMailProperties.java:11` |
 | **CardProperties** | properties | Limits on a card's content that are a product decision rather than a column size. | - | `config/CardProperties.java:11` |
 | **CorsProperties** | properties | - | - | `config/CorsProperties.java:13` |
@@ -375,6 +528,7 @@ TopicController  [controller]
 | **ImageProperties** | properties | Card pictures: where the files are kept, what is accepted, when unused uploads go. | - | `config/ImageProperties.java:16` |
 | **ImageS3Properties** | properties | The S3 bucket card pictures go to when prep-deck.images.storage=S3. | - | `config/ImageS3Properties.java:15` |
 | **JwtProperties** | properties | Access tokens are short-lived JWTs; refresh tokens are opaque and live in the database. | - | `config/JwtProperties.java:13` |
+| **SharingProperties** | properties | Sharing topics with other people: what links look like, how invitations behave. | - | `config/SharingProperties.java:13` |
 | **VerificationProperties** | properties | How one-time email codes behave. | - | `config/VerificationProperties.java:13` |
 | **MapStructConfig** | class | Shared settings for every mapper: each one is a Spring bean, receives its collaborators through the constructor, and has its generated implementation in an impl package beside it. | - | `config/MapStructConfig.java:15` |
 
@@ -388,7 +542,8 @@ TopicController  [controller]
 | **ImageType** | enum | The picture formats a card accepts, recognised by their first bytes rather than the file name. | String | `domain/ImageType.java:12` |
 | **Language** | enum | The languages the app speaks: the interface language a user picks and the language letters are written in. | String | `domain/Language.java:12` |
 | **ThemeMode** | enum | Dark or light interface. | String | `domain/ThemeMode.java:7` |
-| **TopicRole** | enum | The caller's role on a topic. | - | `domain/TopicRole.java:11` |
+| **TopicAction** | enum | What a caller wants to do with a topic and the cards in it; TopicRole#allows decides. | - | `domain/TopicAction.java:4` |
+| **TopicRole** | enum | The caller's role on a topic, and the one list of what each role may do. | Set | `domain/TopicRole.java:17` |
 
 ### `dto.auth.request`
 
@@ -406,7 +561,6 @@ TopicController  [controller]
 |---|---|---|---|---|
 | **CodeAttemptsResponse** | record | The data of an "auth.codeInvalid" refusal: wrong guesses still allowed for this code. | - | `dto/auth/response/CodeAttemptsResponse.java:4` |
 | **RegistrationResponse** | record | Sign-up accepted: the account waits for its email to be confirmed, and a letter with the code is on its way to email. | - | `dto/auth/response/RegistrationResponse.java:7` |
-| **RetryAfterResponse** | record | The data of an "auth.resendTooSoon" refusal: seconds until another letter may be asked for. | - | `dto/auth/response/RetryAfterResponse.java:4` |
 | **SessionResponse** | record | What log in, sign up and refresh answer with (client type `Session`). | - | `dto/auth/response/SessionResponse.java:7` |
 | **UnconfirmedEmailResponse** | record | The data of an "auth.emailNotVerified" refusal at log in: the right password, an email not yet confirmed. | - | `dto/auth/response/UnconfirmedEmailResponse.java:8` |
 | **UserResponse** | record | The user as the client sees them (client type `User`). | - | `dto/auth/response/UserResponse.java:6` |
@@ -430,6 +584,7 @@ TopicController  [controller]
 | Class | Role | Summary | Injects | Where |
 |---|---|---|---|---|
 | **ApiResponse** | record | The one shape every endpoint answers with, success or failure alike. | - | `dto/common/response/ApiResponse.java:11` |
+| **RetryAfterResponse** | record | The data of a "too soon" refusal ("auth.resendTooSoon", "share.inviteTooSoon"): seconds until the same letter may be asked for again. | - | `dto/common/response/RetryAfterResponse.java:7` |
 
 ### `dto.image.response`
 
@@ -450,6 +605,25 @@ TopicController  [controller]
 |---|---|---|---|---|
 | **SettingsResponse** | record | A user's saved picks (client type `Settings`). | - | `dto/settings/response/SettingsResponse.java:13` |
 
+### `dto.share.request`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **AcceptShareRequest** | record | A public link or an invitation link, as pasted or opened: the token alone or the whole link (everything after its last "/" is taken). | - | `dto/share/request/AcceptShareRequest.java:10` |
+| **CopyTopicRequest** | record | Where the copy goes among the caller's own topics; parentId null makes it a root. | - | `dto/share/request/CopyTopicRequest.java:6` |
+| **InviteRequest** | record | Invites someone by email or username to the topics given, all of one tree. | - | `dto/share/request/InviteRequest.java:15` |
+| **ShareTopicsRequest** | record | The whole new set of topics a person may see in one tree; it replaces the old set. | - | `dto/share/request/ShareTopicsRequest.java:11` |
+| **UpdateLinkRequest** | record | Turns the tree's public link on or off. | - | `dto/share/request/UpdateLinkRequest.java:14` |
+
+### `dto.share.response`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **ShareInviteResponse** | record | An invitation letter not accepted yet. | - | `dto/share/response/ShareInviteResponse.java:8` |
+| **ShareLinkResponse** | record | The tree's public link. | - | `dto/share/response/ShareLinkResponse.java:10` |
+| **ShareMemberResponse** | record | A person with access to part of a tree: the topics granted to them (each with its subtree), in tree order. | - | `dto/share/response/ShareMemberResponse.java:14` |
+| **SharingResponse** | record | Who can see a tree and how (client type `TopicSharing`): the people with access, the invitations still waiting, and the public link. | - | `dto/share/response/SharingResponse.java:13` |
+
 ### `dto.topic.request`
 
 | Class | Role | Summary | Injects | Where |
@@ -462,7 +636,7 @@ TopicController  [controller]
 
 | Class | Role | Summary | Injects | Where |
 |---|---|---|---|---|
-| **TopicResponse** | record | One topic of the flat list the client builds its tree from (client type `Topic`). | - | `dto/topic/response/TopicResponse.java:14` |
+| **TopicResponse** | record | One topic of the flat list the client builds its tree from (client type `Topic`). | - | `dto/topic/response/TopicResponse.java:19` |
 
 ### `exception`
 
@@ -482,9 +656,12 @@ TopicController  [controller]
 | Class | Role | Summary | Injects | Where |
 |---|---|---|---|---|
 | **EmailService** | service | Renders a template and hands the letter to the SMTP server configured in `spring.mail.*`. | AppMailProperties, EmailTemplates, JavaMailSender | `mail/EmailService.java:18` |
-| **EmailTemplates** | component | The letter templates (location and names in EmailTemplateProperties), filled in by name: every {{key}} becomes its value, HTML-escaped. | EmailTemplateProperties, ResourceLoader | `mail/EmailTemplates.java:27` |
+| **EmailTemplates** | component | The letter templates (location and names in EmailTemplateProperties), filled in by name: every {{key}} becomes its value, HTML-escaped. | EmailTemplateProperties, ResourceLoader | `mail/EmailTemplates.java:30` |
+| **ShareInviteMailListener** | component | Sends the invitation letter once the invitation is safely in the database, on a thread of its own. | AppMailProperties, EmailService, EmailTemplateProperties | `mail/ShareInviteMailListener.java:23` |
 | **VerificationMailListener** | component | Sends the confirmation letter once the code is safely in the database, on a thread of its own. | AppMailProperties, EmailService, EmailTemplateProperties | `mail/VerificationMailListener.java:22` |
+| **InvitedTopic** | record | One topic of an invitation letter: its title, the titles above it (path, empty for a root), the cards in its whole subtree, and whether it has subtopics that come along. | - | `mail/InvitedTopic.java:9` |
 | **Letter** | record | A rendered letter: the subject line and the HTML body. | - | `mail/Letter.java:4` |
+| **ShareInviteIssued** | record | An invitation was saved and its letter should go out. | - | `mail/ShareInviteIssued.java:12` |
 | **VerificationCodeIssued** | record | A code was saved and its letter should go out. | - | `mail/VerificationCodeIssued.java:9` |
 
 ### `persistence.card.dao`
@@ -594,6 +771,45 @@ TopicController  [controller]
 |---|---|---|---|---|
 | **UserSettingsRepository** | repository | - | - | `persistence/settings/repository/UserSettingsRepository.java:8` |
 
+### `persistence.share.dao`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **ShareBlockDaoServiceImpl** | service | - | ShareBlockRepository | `persistence/share/dao/ShareBlockDaoServiceImpl.java:12` |
+| **ShareInviteDaoServiceImpl** | service | - | ShareInviteRepository | `persistence/share/dao/ShareInviteDaoServiceImpl.java:17` |
+| **ShareLinkDaoServiceImpl** | service | - | ShareLinkRepository | `persistence/share/dao/ShareLinkDaoServiceImpl.java:15` |
+| **TopicGrantDaoServiceImpl** | service | - | TopicGrantRepository | `persistence/share/dao/TopicGrantDaoServiceImpl.java:20` |
+| **ShareBlockDaoService** | interface | - | - | `persistence/share/dao/ShareBlockDaoService.java:5` |
+| **ShareInviteDaoService** | interface | - | - | `persistence/share/dao/ShareInviteDaoService.java:10` |
+| **ShareLinkDaoService** | interface | - | - | `persistence/share/dao/ShareLinkDaoService.java:9` |
+| **TopicGrantDaoService** | interface | - | - | `persistence/share/dao/TopicGrantDaoService.java:13` |
+
+### `persistence.share.entity`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **ShareBlock** | entity | An owner took access from this user: the owner's public links no longer let them in. | - | `persistence/share/entity/ShareBlock.java:25` |
+| **ShareInvite** | entity | A personal invitation sent by email. | - | `persistence/share/entity/ShareInvite.java:31` |
+| **ShareLink** | entity | The public link of one tree. | - | `persistence/share/entity/ShareLink.java:32` |
+| **TopicGrant** | entity | Someone other than the owner may see a topic and its whole subtree. | - | `persistence/share/entity/TopicGrant.java:27` |
+| **GrantSource** | enum | How a grant came about. | - | `persistence/share/entity/GrantSource.java:4` |
+| **ShareBlockKey** | class | The key of ShareBlock: one row per owner and user. | - | `persistence/share/entity/ShareBlockKey.java:18` |
+
+### `persistence.share.mapper`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **ShareMapper** | interface | - | - | `persistence/share/mapper/ShareMapper.java:13` |
+
+### `persistence.share.repository`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **ShareBlockRepository** | repository | - | - | `persistence/share/repository/ShareBlockRepository.java:12` |
+| **ShareInviteRepository** | repository | - | - | `persistence/share/repository/ShareInviteRepository.java:15` |
+| **ShareLinkRepository** | repository | - | - | `persistence/share/repository/ShareLinkRepository.java:10` |
+| **TopicGrantRepository** | repository | - | - | `persistence/share/repository/TopicGrantRepository.java:14` |
+
 ### `persistence.token.dao`
 
 | Class | Role | Summary | Injects | Where |
@@ -630,20 +846,20 @@ TopicController  [controller]
 
 | Class | Role | Summary | Injects | Where |
 |---|---|---|---|---|
-| **TopicMapper** | interface | Topics are only ever their owner's while sharing is not built: the role is owner, nothing is shared or unseen. | - | `persistence/topic/mapper/TopicMapper.java:15` |
+| **TopicMapper** | interface | Practice is not built yet, so nothing is due. | - | `persistence/topic/mapper/TopicMapper.java:16` |
 
 ### `persistence.topic.repository`
 
 | Class | Role | Summary | Injects | Where |
 |---|---|---|---|---|
-| **TopicRepository** | repository | - | - | `persistence/topic/repository/TopicRepository.java:10` |
+| **TopicRepository** | repository | - | - | `persistence/topic/repository/TopicRepository.java:9` |
 
 ### `persistence.user.dao`
 
 | Class | Role | Summary | Injects | Where |
 |---|---|---|---|---|
-| **UserDaoServiceImpl** | service | - | UserRepository | `persistence/user/dao/UserDaoServiceImpl.java:14` |
-| **UserDaoService** | interface | - | - | `persistence/user/dao/UserDaoService.java:8` |
+| **UserDaoServiceImpl** | service | - | UserRepository | `persistence/user/dao/UserDaoServiceImpl.java:16` |
+| **UserDaoService** | interface | - | - | `persistence/user/dao/UserDaoService.java:10` |
 
 ### `persistence.user.entity`
 
@@ -683,14 +899,14 @@ TopicController  [controller]
 
 | Class | Role | Summary | Injects | Where |
 |---|---|---|---|---|
-| **CardWebServiceImpl** | service | Reads run in a transaction too: a card's tags and pictures load lazily while it is mapped. | CardDaoService, CardMapper, CardProperties, Clock, ImageDaoService, ImageProperties, TopicGuard | `service/card/CardWebServiceImpl.java:37` |
-| **CardWebService** | interface | Cards in a user's topics. | - | `service/card/CardWebService.java:15` |
+| **CardWebServiceImpl** | service | Reads run in a transaction too: a card's tags and pictures load lazily while it is mapped. | CardDaoService, CardMapper, CardProperties, Clock, ImageDaoService, ImageProperties, TopicGuard | `service/card/CardWebServiceImpl.java:40` |
+| **CardWebService** | interface | Cards in a user's topics. | - | `service/card/CardWebService.java:16` |
 
 ### `service.image`
 
 | Class | Role | Summary | Injects | Where |
 |---|---|---|---|---|
-| **ImageWebServiceImpl** | service | - | Clock, ImageDaoService, ImageFileStore, ImageMapper, ImageProperties, ImageSizeReader | `service/image/ImageWebServiceImpl.java:28` |
+| **ImageWebServiceImpl** | service | - | Clock, ImageDaoService, ImageFileStore, ImageMapper, ImageProperties, ImageSizeReader | `service/image/ImageWebServiceImpl.java:29` |
 | **ImageSizeReader** | component | Reads a picture's width and height from its own headers (metadata-extractor), never decoding the pixels, so the size the client claims is never needed or trusted. | - | `service/image/ImageSizeReader.java:24` |
 | **ImageContent** | record | A picture's bytes ready to stream, with what the response headers need. | - | `service/image/ImageContent.java:7` |
 | **ImageSize** | record | A picture's size in pixels as it is displayed, EXIF rotation applied. | - | `service/image/ImageSize.java:4` |
@@ -703,13 +919,30 @@ TopicController  [controller]
 | **SettingsWebServiceImpl** | service | - | Clock, UserSettingsDaoService, UserSettingsMapper | `service/settings/SettingsWebServiceImpl.java:17` |
 | **SettingsWebService** | interface | A user's picks kept on the server, so every device they sign in on starts the same: theme, accent, language, the topic opened last. | - | `service/settings/SettingsWebService.java:12` |
 
+### `service.share`
+
+| Class | Role | Summary | Injects | Where |
+|---|---|---|---|---|
+| **SharedTopicWebServiceImpl** | service | - | CardDaoService, Clock, ShareBlockDaoService, ShareInviteDaoService, ShareLinkDaoService, TopicDaoService, TopicGrantDaoService, TopicGuard, TopicMapper, UserDaoService, UserMapper | `service/share/SharedTopicWebServiceImpl.java:49` |
+| **SharingWebServiceImpl** | service | Each method is one transaction: replacing a person's grants, or revoking an old invitation and saving its successor, must land together. | ApplicationEventPublisher, CardDaoService, Clock, ShareBlockDaoService, ShareInviteDaoService, ShareLinkDaoService, ShareMapper, SharingProperties, TopicDaoService, TopicGrantDaoService, TopicGuard, UserDaoService, UserMapper, UserSettingsDaoService | `service/share/SharingWebServiceImpl.java:67` |
+| **TopicCopyWebServiceImpl** | service | Three steps, as an upload does: the subtree is read in one short transaction; the picture files are copied inside the store with no transaction open, so a slow bucket never holds a database connectio… | CardDaoService, ImageDaoService, ImageFileStore, PlatformTransactionManager, SharingProperties, TopicDaoService, TopicGuard, TopicMapper, TransactionTemplate, UserDaoService, UserMapper | `service/share/TopicCopyWebServiceImpl.java:41` |
+| **CardCopy** | record | A card read for copying: its content, and its pictures by the ids of the originals. | - | `service/share/CardCopy.java:7` |
+| **SharedEntry** | record | One topic of Shared with me before its card count is known: parentId is null where the part the user sees starts, and path names the parents above it they cannot see. | - | `service/share/SharedEntry.java:14` |
+| **SharedTree** | record | One owner's tree that is being shared: its root and all the owner's topics around it. | - | `service/share/SharedTree.java:11` |
+| **TopicCopyPlan** | record | What a copy will be made of, read in one transaction: the topics of the subtree (parents first), their cards oldest first, and every picture they show. | - | `service/share/TopicCopyPlan.java:15` |
+| **SharedTopicWebService** | interface | The side of the people a topic is shared with: Shared with me, coming in, leaving. | - | `service/share/SharedTopicWebService.java:10` |
+| **SharingWebService** | interface | The owner's side of sharing: who can see a tree, and the ways in. | - | `service/share/SharingWebService.java:17` |
+| **TopicCopyWebService** | interface | "Copy to my topics": a topic someone can see becomes theirs to change. | - | `service/share/TopicCopyWebService.java:9` |
+
 ### `service.topic`
 
 | Class | Role | Summary | Injects | Where |
 |---|---|---|---|---|
-| **TopicWebServiceImpl** | service | - | CardDaoService, TopicDaoService, TopicGuard, TopicMapper, UserDaoService, UserMapper | `service/topic/TopicWebServiceImpl.java:30` |
-| **TopicGuard** | component | The one place that decides whether a user may touch a topic and the cards in it. | TopicDaoService | `service/topic/TopicGuard.java:19` |
+| **TopicWebServiceImpl** | service | Every change goes through TopicGuard with TopicAction#EDIT, and works on the owner's tree (the topic's owner, not necessarily the caller), so a role that may edit someone else's topics later needs no… | CardDaoService, Clock, ShareInviteDaoService, ShareLinkDaoService, TopicDaoService, TopicGrantDaoService, TopicGuard, TopicMapper, UserDaoService, UserMapper | `service/topic/TopicWebServiceImpl.java:43` |
+| **TopicGuard** | component | The one place that decides whether a user may touch a topic and the cards in it. | TopicDaoService, TopicGrantDaoService | `service/topic/TopicGuard.java:28` |
+| **TopicAccess** | record | A topic the caller was let through to, and the role that let them. | - | `service/topic/TopicAccess.java:7` |
 | **TopicWebService** | interface | A user's topic tree: read flat, grown, renamed, rearranged and pruned. | - | `service/topic/TopicWebService.java:12` |
+| **TopicForest** | class | One owner's topics as trees in memory, built from the flat list the database gives. | Collection | `service/topic/TopicForest.java:22` |
 
 ## 4. Data model
 
@@ -719,7 +952,11 @@ TopicController  [controller]
 | **Image** | entity | `images` | 8 | ImageRepository | `persistence/image/entity/Image.java:35` |
 | **OneTimeCode** | entity | `one_time_codes` | 8 | OneTimeCodeRepository | `persistence/code/entity/OneTimeCode.java:29` |
 | **RefreshToken** | entity | `refresh_tokens` | 7 | RefreshTokenRepository | `persistence/token/entity/RefreshToken.java:30` |
+| **ShareBlock** | entity | `share_blocks` | 3 | ShareBlockRepository | `persistence/share/entity/ShareBlock.java:25` |
+| **ShareInvite** | entity | `share_invites` | 10 | ShareInviteRepository | `persistence/share/entity/ShareInvite.java:31` |
+| **ShareLink** | entity | `share_links` | 8 | ShareLinkRepository | `persistence/share/entity/ShareLink.java:32` |
 | **Topic** | entity | `topics` | 7 | TopicRepository | `persistence/topic/entity/Topic.java:27` |
+| **TopicGrant** | entity | `topic_grants` | 8 | TopicGrantRepository | `persistence/share/entity/TopicGrant.java:27` |
 | **User** | entity | `users` | 8 | UserRepository | `persistence/user/entity/User.java:27` |
 | **UserSettings** | entity | `user_settings` | 6 | UserSettingsRepository | `persistence/settings/entity/UserSettings.java:25` |
 
@@ -731,7 +968,11 @@ TopicController  [controller]
 | **ImageRepository** | Image | `countCardsWith()`, `deleteRow()`, `exists()`, `findOrphanIds()`, `lockById()` | `persistence/image/repository/ImageRepository.java:14` |
 | **OneTimeCodeRepository** | OneTimeCode | `deleteActive()`, `findFirstByUserIdAndPurposeAndUsedAtIsNullOrderByCreatedAtDesc()`, `findFirstByUserIdAndPurposeOrderByCreatedAtDesc()` | `persistence/code/repository/OneTimeCodeRepository.java:15` |
 | **RefreshTokenRepository** | RefreshToken | `findByHashForUpdate()`, `revokeFamily()` | `persistence/token/repository/RefreshTokenRepository.java:15` |
-| **TopicRepository** | Topic | `findByIdAndOwnerId()`, `findByOwnerId()`, `findByOwnerIdAndParentIdIsNullOrderByPositionAsc()`, `findByOwnerIdAndParentIdOrderByPositionAsc()` | `persistence/topic/repository/TopicRepository.java:10` |
+| **ShareBlockRepository** | ShareBlock | `conflict()`, `deleteBlock()`, `existsByOwnerIdAndUserId()`, `insertIfAbsent()`, `values()` | `persistence/share/repository/ShareBlockRepository.java:12` |
+| **ShareInviteRepository** | ShareInvite | `findByHashForUpdate()`, `findFirstByOwnerIdAndEmailOrderByCreatedAtDesc()`, `findPendingOfOwner()` | `persistence/share/repository/ShareInviteRepository.java:15` |
+| **ShareLinkRepository** | ShareLink | `findByOwnerIdAndEnabledTrue()`, `findByToken()`, `findByTopicId()` | `persistence/share/repository/ShareLinkRepository.java:10` |
+| **TopicGrantRepository** | TopicGrant | `chain()`, `conflict()`, `deleteByIds()`, `findByGranteeId()`, `findByOwnerId()`, `findRolesOnTopic()`, `in()`, `insertIfAbsent()`, `markSeen()`, `values()` | `persistence/share/repository/TopicGrantRepository.java:14` |
+| **TopicRepository** | Topic | `findByOwnerId()`, `findByOwnerIdAndParentIdIsNullOrderByPositionAsc()`, `findByOwnerIdAndParentIdOrderByPositionAsc()` | `persistence/topic/repository/TopicRepository.java:9` |
 | **UserRepository** | User | `existsByEmail()`, `existsByUsername()`, `findByEmail()`, `findByUsername()` | `persistence/user/repository/UserRepository.java:9` |
 | **UserSettingsRepository** | UserSettings | - | `persistence/settings/repository/UserSettingsRepository.java:8` |
 
@@ -747,13 +988,14 @@ _none_
 
 | Properties class | Prefix | Keys | Read by | Where |
 |---|---|---|---|---|
-| **AppMailProperties** | `prep-deck.mail` | 2 | EmailService, VerificationMailListener | `config/AppMailProperties.java:11` |
+| **AppMailProperties** | `prep-deck.mail` | 2 | EmailService, ShareInviteMailListener, VerificationMailListener | `config/AppMailProperties.java:11` |
 | **CardProperties** | `prep-deck.cards` | 1 | CardWebServiceImpl | `config/CardProperties.java:11` |
 | **CorsProperties** | `prep-deck.cors` | 2 | - | `config/CorsProperties.java:13` |
-| **EmailTemplateProperties** | `prep-deck.mail.templates` | 5 | EmailTemplates, VerificationMailListener | `config/EmailTemplateProperties.java:15` |
+| **EmailTemplateProperties** | `prep-deck.mail.templates` | 6 | EmailTemplates, ShareInviteMailListener, VerificationMailListener | `config/EmailTemplateProperties.java:15` |
 | **ImageProperties** | `prep-deck.images` | 8 | CardWebServiceImpl, DiskImageFileStoreImpl, ImageWebServiceImpl | `config/ImageProperties.java:16` |
 | **ImageS3Properties** | `prep-deck.images.s3` | 6 | S3ImageFileStoreImpl | `config/ImageS3Properties.java:15` |
 | **JwtProperties** | `prep-deck.jwt` | 4 | AuthWebServiceImpl, JwtService | `config/JwtProperties.java:13` |
+| **SharingProperties** | `prep-deck.sharing` | 4 | SharingWebServiceImpl, TopicCopyWebServiceImpl | `config/SharingProperties.java:13` |
 | **VerificationProperties** | `prep-deck.verification` | 3 | AuthWebServiceImpl | `config/VerificationProperties.java:13` |
 
 ### Keys
@@ -761,17 +1003,18 @@ _none_
 - **AppMailProperties** -- `prep-deck.mail.from`, `prep-deck.mail.support-email`
 - **CardProperties** -- `prep-deck.cards.max-tags`
 - **CorsProperties** -- `prep-deck.cors.mapping`, `prep-deck.cors.allowed-origins`
-- **EmailTemplateProperties** -- `prep-deck.mail.templates.location`, `prep-deck.mail.templates.suffix`, `prep-deck.mail.templates.fallback-language`, `prep-deck.mail.templates.verify-email`, `prep-deck.mail.templates.reset-password`
+- **EmailTemplateProperties** -- `prep-deck.mail.templates.location`, `prep-deck.mail.templates.suffix`, `prep-deck.mail.templates.fallback-language`, `prep-deck.mail.templates.verify-email`, `prep-deck.mail.templates.reset-password`, `prep-deck.mail.templates.invite`
 - **ImageProperties** -- `prep-deck.images.storage`, `prep-deck.images.directory`, `prep-deck.images.max-size`, `prep-deck.images.min-width`, `prep-deck.images.min-height`, `prep-deck.images.max-per-card`, `prep-deck.images.orphan-ttl`, `prep-deck.images.cleanup-interval`
 - **ImageS3Properties** -- `prep-deck.images.s3.endpoint`, `prep-deck.images.s3.region`, `prep-deck.images.s3.bucket`, `prep-deck.images.s3.key-prefix`, `prep-deck.images.s3.access-key-id`, `prep-deck.images.s3.secret-access-key`
 - **JwtProperties** -- `prep-deck.jwt.secret`, `prep-deck.jwt.issuer`, `prep-deck.jwt.access-ttl`, `prep-deck.jwt.refresh-ttl`
+- **SharingProperties** -- `prep-deck.sharing.link-base-url`, `prep-deck.sharing.invite-ttl`, `prep-deck.sharing.invite-cooldown`, `prep-deck.sharing.max-copy-cards`
 - **VerificationProperties** -- `prep-deck.verification.code-ttl`, `prep-deck.verification.max-attempts`, `prep-deck.verification.resend-cooldown`
 
 ### Property files
 
 | File | Keys |
 |---|---|
-| `src/main/resources/application.properties` | 52 |
+| `src/main/resources/application.properties` | 57 |
 
 ### Beans built by hand
 
@@ -807,11 +1050,11 @@ _none_
 
 ## 8. Numbers
 
-- main classes: **120** (4585 lines)
+- main classes: **168** (7131 lines)
 - test classes: **0** (0 lines)
-- by role: advice 1, application 1, class 5, component 10, config 6, controller 5, entity 7, enum 8, exception 1, filter 1, interface 19, properties 8, record 28, repository 7, service 13
-- injection edges: **50**
-- `.` — 120 main classes, package `denys.mazurenko.prepdeckbackend`, Spring Boot 4.2.0, Java 21, artifact `prep-deck-backend`
+- by role: advice 1, application 1, class 7, component 11, config 7, controller 7, entity 11, enum 10, exception 1, filter 1, interface 27, properties 9, record 44, repository 11, service 20
+- injection edges: **97**
+- `.` — 168 main classes, package `denys.mazurenko.prepdeckbackend`, Spring Boot 4.2.0, Java 21, artifact `prep-deck-backend`
 
 ---
 

@@ -21,7 +21,7 @@ public class EmailService {
     private final EmailTemplates templates;
     private final AppMailProperties properties;
 
-    public void send(String to, String template, Language language, Map<String, String> values) throws MessagingException {
+    public void send(String to, String template, Language language, Map<String, ?> values) throws MessagingException {
         Letter letter = templates.render(template, language, values);
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, false, StandardCharsets.UTF_8.name());

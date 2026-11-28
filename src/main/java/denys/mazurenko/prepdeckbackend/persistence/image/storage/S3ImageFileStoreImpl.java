@@ -45,6 +45,16 @@ public class S3ImageFileStoreImpl implements ImageFileStore {
         return Optional.of(new S3ObjectResource(s3, properties.getBucket(), keyOf(id), size));
     }
 
+    /** Copied inside the bucket: the bytes never pass through this application. */
+    @Override
+    public void copy(UUID from, UUID to) {
+        s3.copyObject(request -> request
+                .sourceBucket(properties.getBucket())
+                .sourceKey(keyOf(from))
+                .destinationBucket(properties.getBucket())
+                .destinationKey(keyOf(to)));
+    }
+
     /** S3 answers a delete of a missing key with success too. */
     @Override
     public void delete(UUID id) {

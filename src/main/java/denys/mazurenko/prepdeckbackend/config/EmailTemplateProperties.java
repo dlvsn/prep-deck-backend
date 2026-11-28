@@ -27,4 +27,7 @@ public class EmailTemplateProperties {
 
     /** The template of the password reset letter. */
     private String resetPassword;
+
+    /** The template of the letter inviting someone to topics shared with them. */
+    private String invite;
 }

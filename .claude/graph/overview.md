@@ -10,8 +10,9 @@ spec — topics, cards, practice grades, sharing roles — is what this API is b
 its `src/renderer/api/repositories.ts` lists every call it will make, and its mocks show what each
 answers.
 
-Built so far: accounts and sessions (`/api/auth/**`), settings, topics, cards and card pictures.
-The client has no mocks any more and talks to this service only. Practice and sharing follow.
+Built so far: accounts and sessions (`/api/auth/**`), settings, topics, cards, card pictures and
+sharing (`/api/topics/{id}/sharing/**`, `/api/shares/**`). The client has no mocks any more and
+talks to this service only; its sharing screens are still to come. Practice follows.
 
 ## Decisions already taken
 
@@ -100,10 +101,13 @@ and sums subtrees. Create appends after the siblings; `POST /topics/{id}/move` r
 renumbers both sets of siblings in one transaction and refuses `topics.moveIntoItself`. Delete
 leaves the subtree and its cards to `ON DELETE CASCADE`.
 
-**Access goes through `TopicGuard.require` alone**: today a topic is its owner's only, and
-anyone else's answers 404 `errors.noAccess` (ids cannot be probed). Card calls check the card's
-topic. `TopicResponse.role` is always `owner`, `shared`/`unseen` false, `dueCount` 0; sharing
-will widen `TopicGuard` and fill these, not change the services that call it.
+**Access goes through `TopicGuard.require(user, topic, action)` alone.** The owner holds
+`OWNER`; anyone else holds the role of a grant on the topic or on a topic above it (one recursive
+query), and `TopicRole.allows(TopicAction)` is the one list of what each role may do: `VIEW`,
+`EDIT`, `SHARE`. A topic the caller cannot see answers 404 `errors.noAccess` (ids cannot be
+probed); one they may see but not change answers 403 `errors.readOnly`. Card calls check the
+card's topic. Changes work on the topic owner's tree, not the caller's, and a topic or card never
+leaves its owner's trees. `dueCount` is 0 until practice exists.
 
 **Cards**: question (≤ 500), Markdown answer (≤ 20 000), tags in `card_tags` (lower case, no `#`,
 no repeats, ≤ 10, normalised by the server), pictures in `card_images` in display order. Lists are
@@ -111,6 +115,54 @@ newest first. `PATCH /cards/{id}` changes only the fields it carries; `topicId` 
 `POST /cards/{id}/duplicate` takes the copy's question from the client (it is localised: "… (copy)",
 "… (копія)") and shares the original's image rows. `status` is always `new` and `dueAt` null until
 practice exists; editing never touches progress.
+
+## Sharing
+
+**Only the owner changes a topic.** Everyone it is shared with is a `VIEWER`: they open it,
+practise it with progress of their own, and may copy it into their own topics. `EDITOR` is already
+in `TopicRole` (and the client knows the code) but nobody can be given it: adding it means
+allowing it in `ck_topic_grants_role` and `TopicRole.isGrantable()`, nothing in the services.
+
+**A grant is the only access** (`topic_grants`, unique per topic and person). A grant on a topic
+opens its whole subtree, subtopics added later included; a subtopic can be granted alone. A
+person's grants are kept outermost (`TopicForest.outermost`): a subtopic under a granted topic is
+never granted again. Grants are read on every request, so a removed grant locks its holder out
+at once, **whatever link they still hold**.
+
+**Links and invitations only create grants**, through `POST /shares/accept` with the token:
+
+- **the public link** (`share_links`, one per tree, keyed by the tree's root): its own set of
+  topics, on or off. The token is stored as is, since the owner copies it again whenever they
+  like; reset replaces it and the old link dies at once, people who came through it stay.
+- **an invitation** (`share_invites`): by email, or by username (the account's email is used).
+  The letter (`invite-<lang>.html`, the invitee's language when they have settings, else the
+  inviter's request) carries a link of its own: SHA-256 in the table, one use, `invite-ttl`
+  (14 days), and only an account with that email can accept it. One waiting invitation per
+  address and tree (a new one revokes the last), at most one letter per `invite-cooldown`.
+  Inviting someone who already has access is refused: the owner changes their topics instead.
+
+Both kinds of link are `prep-deck.sharing.link-base-url` + token (`prepdeck://topic/` locally).
+
+**Taking access away blocks the way back**: removing a person, or everyone who came through the
+link alone, deletes their grants in that tree, revokes a letter still waiting for them there, and
+writes `share_blocks` (owner, user). A blocked user is refused by every public link of that owner
+(`share.accessRevoked`) until they accept a personal invitation, which lifts the block.
+
+**Shared with me** (`GET /shares`) lists each granted topic with its subtree, flat;
+`parentId` is null where the visible part starts and `path` names the parents above it they
+cannot see. `unseen` is true until `POST /shares/{id}/seen`. Leaving (`DELETE /shares/{id}`)
+drops the grant the topic came through, with everything under it. In My topics `shared` marks
+topics granted directly, opened by an enabled link, or listed in a waiting invitation.
+
+**Copy to my topics** (`POST /shares/{id}/copy`, at most `max-copy-cards`) reads the subtree in
+one transaction, copies the picture files inside the store (`ImageFileStore.copy`, no
+transaction open), then writes every row in one transaction, the pictures as the copier's own
+images; on failure the copied files are deleted again.
+
+**Card history and rollback are not built.** When they come: every card change already passes
+through `CardWebServiceImpl` with the caller and their role at hand, which is where a revision
+row would be written; rollback would be a new `TopicAction` held by `OWNER` alone; and
+`ImageRepository.findOrphanIds` would have to count pictures that revisions still refer to.
 
 ## Card pictures
 
@@ -170,4 +222,6 @@ Without the lock, a card saved with an old upload during the sweep would lose it
   `dto/<feature>/{request,response}`, `service/<feature>`, `api/<feature>`, and a path in
   `ApiPaths`.
 - A new open endpoint: add it to the `permitAll()` list in `SecurityConfig`.
+- Who may do what with a topic: `TopicAction` and `TopicRole` in `domain/`, checked only by
+  `TopicGuard`.
 - Settings: `src/main/resources/application.properties`.

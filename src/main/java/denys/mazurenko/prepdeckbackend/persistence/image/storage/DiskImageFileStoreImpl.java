@@ -50,6 +50,15 @@ public class DiskImageFileStoreImpl implements ImageFileStore {
     }
 
     @Override
+    public void copy(UUID from, UUID to) {
+        try {
+            Files.copy(pathOf(from), pathOf(to), StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    @Override
     public void delete(UUID id) {
         try {
             Files.deleteIfExists(pathOf(id));
